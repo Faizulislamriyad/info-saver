@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Info Saver — Client Ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===== LOGIN SCREEN ===== -->
+  <section id="login-screen" class="login-screen">
+    <div class="login-card">
+      <div class="login-mark">IS</div>
+      <h1>Info Saver</h1>
+      <p class="login-sub">তোমার ক্লায়েন্টদের সব তথ্য, এক জায়গায় গোছানো।</p>
+      <button id="google-login-btn" class="btn btn-google">
+        <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+          <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z"/>
+          <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.36 0-4.35-1.6-5.06-3.74H.94v2.33A9 9 0 0 0 9 18Z"/>
+          <path fill="#FBBC05" d="M3.94 10.68A5.4 5.4 0 0 1 3.66 9c0-.58.1-1.15.28-1.68V4.99H.94A9 9 0 0 0 0 9c0 1.45.35 2.83.94 4.01l3-2.33Z"/>
+          <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.9 11.42 0 9 0A9 9 0 0 0 .94 4.99l3 2.33C4.65 5.18 6.64 3.58 9 3.58Z"/>
+        </svg>
+        <span>Google দিয়ে সাইন ইন করো</span>
+      </button>
+    </div>
+  </section>
+
+  <!-- ===== APP SHELL ===== -->
+  <div id="app-shell" class="app-shell hidden">
+
+    <header class="topbar">
+      <div class="topbar-brand">
+        <span class="brand-mark">IS</span>
+        <span class="brand-name">Info Saver</span>
+      </div>
+      <div class="topbar-actions">
+        <div class="user-chip">
+          <img id="user-photo" src="" alt="" />
+          <span id="user-name"></span>
+        </div>
+        <button id="logout-btn" class="btn btn-ghost">সাইন আউট</button>
+      </div>
+    </header>
+
+    <main class="content">
+
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <h2>ক্লায়েন্ট লেজার</h2>
+          <span id="client-count" class="count-tag">0 এন্ট্রি</span>
+        </div>
+        <div class="toolbar-right">
+          <input id="search-input" type="search" placeholder="নাম, ব্র্যান্ড বা ফোন দিয়ে খোঁজো…" />
+          <select id="status-filter">
+            <option value="all">সব স্ট্যাটাস</option>
+            <option value="new">New</option>
+            <option value="ongoing">Ongoing</option>
+            <option value="queued">Queued</option>
+            <option value="delivered">Delivered</option>
+          </select>
+          <button id="add-client-btn" class="btn btn-primary">+ নতুন ক্লায়েন্ট</button>
+        </div>
+      </div>
+
+      <div id="empty-state" class="empty-state hidden">
+        <div class="empty-mark">◇</div>
+        <h3>এখনও কোনো এন্ট্রি নেই</h3>
+        <p>প্রথম ক্লায়েন্টের তথ্য যোগ করে লেজার শুরু করো।</p>
+      </div>
+
+      <div id="client-grid" class="client-grid"></div>
+
+    </main>
+  </div>
+
+  <!-- ===== CLIENT FORM PANEL ===== -->
+  <div id="form-overlay" class="form-overlay hidden">
+    <div class="form-panel">
+      <div class="form-panel-head">
+        <h3 id="form-title">নতুন ক্লায়েন্ট যোগ করো</h3>
+        <button id="close-form-btn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <form id="client-form" class="client-form">
+        <input type="hidden" id="client-id" />
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-project-start">Project Start</label>
+            <input type="date" id="f-project-start" required />
+          </div>
+          <div class="field">
+            <label for="f-delivery-time">Delivery Time</label>
+            <input type="date" id="f-delivery-time" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-client-name">Client Name</label>
+            <input type="text" id="f-client-name" placeholder="যেমন: Rahim Uddin" required />
+          </div>
+          <div class="field">
+            <label for="f-brand-name">Brand Name</label>
+            <input type="text" id="f-brand-name" placeholder="যেমন: Rahim's Bakery" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-found-from">Found From</label>
+            <select id="f-found-from">
+              <option value="Facebook">Facebook</option>
+              <option value="Self Message">Self Message</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Fiverr">Fiverr</option>
+              <option value="Upwork">Upwork</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <input type="text" id="f-found-from-custom" class="hidden custom-input" placeholder="সোর্সের নাম লেখো" />
+          </div>
+          <div class="field">
+            <label for="f-phone">Phone Number</label>
+            <div class="input-with-btn">
+              <input type="tel" id="f-phone" placeholder="+8801XXXXXXXXX" />
+              <button type="button" id="check-whatsapp-btn" class="btn btn-outline btn-sm">WhatsApp চেক</button>
+            </div>
+            <span class="hint">নম্বরটা WhatsApp-এ খোলা হবে যাচাইয়ের জন্য — অটো-ডিটেক্ট নয়।</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Facebook Page(s)</label>
+          <div id="fb-page-list" class="repeatable-list"></div>
+          <button type="button" id="add-fb-page-btn" class="btn btn-outline btn-sm">+ পেজ যোগ করো</button>
+        </div>
+
+        <div class="field">
+          <label for="f-website">Website</label>
+          <input type="url" id="f-website" placeholder="https://example.com" />
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-payment">Payment</label>
+            <input type="text" id="f-payment" placeholder="যেমন: 15,000 BDT" />
+          </div>
+          <div class="field">
+            <label for="f-payment-method">Payment Method</label>
+            <select id="f-payment-method">
+              <option value="Bkash">Bkash</option>
+              <option value="Nagad">Nagad</option>
+              <option value="Bank">Bank Transfer</option>
+              <option value="PayPal">PayPal</option>
+              <option value="Payoneer">Payoneer</option>
+              <option value="Cash">Cash</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <input type="text" id="f-payment-method-custom" class="hidden custom-input" placeholder="মেথডের নাম লেখো" />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="f-corrections">Total Correction</label>
+            <input type="number" id="f-corrections" min="0" value="0" />
+          </div>
+          <div class="field">
+            <label for="f-status">Status</label>
+            <select id="f-status">
+              <option value="new">New</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="queued">Queued</option>
+              <option value="delivered">Delivered</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-note">Note</label>
+          <textarea id="f-note" rows="3" placeholder="অতিরিক্ত কোনো তথ্য বা মনে রাখার মতো কিছু…"></textarea>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" id="delete-client-btn" class="btn btn-danger hidden">এন্ট্রি ডিলিট করো</button>
+          <div class="form-actions-right">
+            <button type="button" id="cancel-form-btn" class="btn btn-ghost">বাতিল</button>
+            <button type="submit" class="btn btn-primary">সেভ করো</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
