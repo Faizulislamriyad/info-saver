@@ -26,6 +26,10 @@ const logoutBtn = document.getElementById("logout-btn");
 const userPhoto = document.getElementById("user-photo");
 const userName = document.getElementById("user-name");
 
+const statClients = document.getElementById("stat-clients");
+const statProjects = document.getElementById("stat-projects");
+const statIncome = document.getElementById("stat-income");
+
 const clientGrid = document.getElementById("client-grid");
 const emptyState = document.getElementById("empty-state");
 const clientCount = document.getElementById("client-count");
@@ -52,19 +56,42 @@ const checkWhatsappBtn = document.getElementById("check-whatsapp-btn");
 const fbPageList = document.getElementById("fb-page-list");
 const addFbPageBtn = document.getElementById("add-fb-page-btn");
 const fWebsite = document.getElementById("f-website");
-const fPayment = document.getElementById("f-payment");
+const projectList = document.getElementById("project-list");
+const addProjectBtn = document.getElementById("add-project-btn");
+const projectBlockTemplate = document.getElementById("project-block-template");
 const fPaymentMethod = document.getElementById("f-payment-method");
 const fPaymentMethodCustom = document.getElementById("f-payment-method-custom");
-const fCorrections = document.getElementById("f-corrections");
 const fStatus = document.getElementById("f-status");
 const fNote = document.getElementById("f-note");
 
 const toast = document.getElementById("toast");
 
+const themeToggleBtns = [
+  document.getElementById("theme-toggle"),
+  document.getElementById("theme-toggle-login"),
+].filter(Boolean);
+
 /* ---------------- State ---------------- */
 let currentUser = null;
 let unsubscribeClients = null;
 let allClients = []; // cached array of {id, ...data}
+
+/* ---------------- Theme (day / night) ---------------- */
+function applyTheme(theme) {
+  if (theme === "light") {
+    document.documentElement.setAttribute("data-theme", "light");
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+  localStorage.setItem("infosaver-theme", theme);
+}
+
+themeToggleBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    applyTheme(isLight ? "dark" : "light");
+  });
+});
 
 /* ---------------- Auth ---------------- */
 googleLoginBtn.addEventListener("click", async () => {
@@ -104,7 +131,6 @@ function subscribeToClients(uid) {
     q,
     (snapshot) => {
       allClients = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      // newest project-start first
       allClients.sort((a, b) => (b.projectStart || "").localeCompare(a.projectStart || ""));
       renderClients();
     },
@@ -114,8 +140,29 @@ function subscribeToClients(uid) {
   );
 }
 
+/* ---------------- Dashboard stats ---------------- */
+function updateStats() {
+  const totalClients = allClients.length;
+  let totalProjects = 0;
+  let totalIncome = 0;
+
+  for (const c of allClients) {
+    const projects = c.projects || [];
+    totalProjects += projects.length;
+    for (const p of projects) {
+      totalIncome += Number(p.payment) || 0;
+    }
+  }
+
+  statClients.textContent = totalClients.toLocaleString("en-US");
+  statProjects.textContent = totalProjects.toLocaleString("en-US");
+  statIncome.textContent = totalIncome.toLocaleString("en-US");
+}
+
 /* ---------------- Rendering ---------------- */
 function renderClients() {
+  updateStats();
+
   const term = searchInput.value.trim().toLowerCase();
   const statusVal = statusFilter.value;
 
@@ -149,6 +196,8 @@ function buildClientCard(c) {
   card.addEventListener("click", () => openForm(c));
 
   const statusLabel = statusLabelOf(c.status);
+  const projects = c.projects || [];
+  const projectIncome = projects.reduce((sum, p) => sum + (Number(p.payment) || 0), 0);
 
   card.innerHTML = `
     <div class="card-top">
@@ -161,9 +210,9 @@ function buildClientCard(c) {
     <div class="card-meta">
       <div><span>Found From</span><span>${escapeHtml(c.foundFrom || "—")}</span></div>
       <div><span>Phone</span><span>${escapeHtml(c.phone || "—")}</span></div>
-      <div><span>Payment</span><span>${escapeHtml(c.payment || "—")}${c.paymentMethod ? " · " + escapeHtml(c.paymentMethod) : ""}</span></div>
       <div><span>Delivery</span><span>${escapeHtml(c.deliveryTime || "—")}</span></div>
-      <div><span>Corrections</span><span>${c.corrections ?? 0}</span></div>
+      <div><span>Projects</span><span>${projects.length}</span></div>
+      <div><span>Income</span><span>${projectIncome.toLocaleString("en-US")}</span></div>
     </div>
   `;
   return card;
@@ -210,6 +259,51 @@ function getFbPages() {
     .filter(Boolean);
 }
 
+/* ---------------- Projects (unlimited, each with own details) ---------------- */
+function renumberProjects() {
+  projectList.querySelectorAll(".project-block").forEach((block, i) => {
+    block.querySelector(".project-title").textContent = `Project ${i + 1}`;
+  });
+}
+
+function addProjectRow(project = {}) {
+  const fragment = projectBlockTemplate.content.cloneNode(true);
+  const block = fragment.querySelector(".project-block");
+
+  const status = project.status || "new";
+  block.dataset.status = status;
+
+  block.querySelector(".p-payment").value = project.payment ?? "";
+  block.querySelector(".p-correction").value = project.correction ?? 0;
+  block.querySelector(".p-start").value = project.startDate || "";
+  block.querySelector(".p-end").value = project.endDate || "";
+  block.querySelector(".p-status").value = status;
+  block.querySelector(".p-note").value = project.note || "";
+
+  block.querySelector(".p-status").addEventListener("change", (e) => {
+    block.dataset.status = e.target.value;
+  });
+  block.querySelector(".project-remove-btn").addEventListener("click", () => {
+    block.remove();
+    renumberProjects();
+  });
+
+  projectList.appendChild(block);
+  renumberProjects();
+}
+addProjectBtn.addEventListener("click", () => addProjectRow());
+
+function getProjects() {
+  return Array.from(projectList.querySelectorAll(".project-block")).map((block) => ({
+    payment: Number(block.querySelector(".p-payment").value) || 0,
+    correction: Number(block.querySelector(".p-correction").value) || 0,
+    startDate: block.querySelector(".p-start").value,
+    endDate: block.querySelector(".p-end").value,
+    status: block.querySelector(".p-status").value,
+    note: block.querySelector(".p-note").value.trim(),
+  }));
+}
+
 /* ---------------- WhatsApp check (best-effort) ---------------- */
 checkWhatsappBtn.addEventListener("click", () => {
   const raw = fPhone.value.trim();
@@ -233,6 +327,8 @@ function resetForm() {
   fIdInput.value = "";
   fbPageList.innerHTML = "";
   addFbPageRow();
+  projectList.innerHTML = "";
+  addProjectRow();
   fFoundFromCustom.classList.add("hidden");
   fPaymentMethodCustom.classList.add("hidden");
   deleteClientBtn.classList.add("hidden");
@@ -265,7 +361,10 @@ function openForm(client = null) {
     pages.forEach((p) => addFbPageRow(p));
 
     fWebsite.value = client.website || "";
-    fPayment.value = client.payment || "";
+
+    projectList.innerHTML = "";
+    const projects = client.projects && client.projects.length ? client.projects : [{}];
+    projects.forEach((p) => addProjectRow(p));
 
     const knownMethods = ["Bkash", "Nagad", "Bank", "PayPal", "Payoneer", "Cash"];
     if (client.paymentMethod && !knownMethods.includes(client.paymentMethod)) {
@@ -276,7 +375,6 @@ function openForm(client = null) {
       fPaymentMethod.value = client.paymentMethod || "Bkash";
     }
 
-    fCorrections.value = client.corrections ?? 0;
     fStatus.value = client.status || "new";
     fNote.value = client.note || "";
 
@@ -315,9 +413,8 @@ clientForm.addEventListener("submit", async (e) => {
     phone: fPhone.value.trim(),
     facebookPages: getFbPages(),
     website: fWebsite.value.trim(),
-    payment: fPayment.value.trim(),
+    projects: getProjects(),
     paymentMethod,
-    corrections: Number(fCorrections.value) || 0,
     status: fStatus.value,
     note: fNote.value.trim(),
     updatedAt: serverTimestamp(),

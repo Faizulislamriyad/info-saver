@@ -8,11 +8,21 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
+<script>
+  // Apply saved theme before paint so there's no flash of the wrong mode.
+  (function () {
+    var saved = localStorage.getItem("infosaver-theme");
+    if (saved === "light") document.documentElement.setAttribute("data-theme", "light");
+  })();
+</script>
 </head>
 <body>
 
   <!-- ===== LOGIN SCREEN ===== -->
   <section id="login-screen" class="login-screen">
+    <button id="theme-toggle-login" class="theme-toggle" aria-label="Toggle day/night mode" title="Day / Night mode">
+      <span class="theme-icon-sun">☀</span><span class="theme-icon-moon">☾</span>
+    </button>
     <div class="login-card">
       <div class="login-mark">IS</div>
       <h1>Info Saver</h1>
@@ -38,6 +48,9 @@
         <span class="brand-name">Info Saver</span>
       </div>
       <div class="topbar-actions">
+        <button id="theme-toggle" class="theme-toggle" aria-label="Toggle day/night mode" title="Day / Night mode">
+          <span class="theme-icon-sun">☀</span><span class="theme-icon-moon">☾</span>
+        </button>
         <div class="user-chip">
           <img id="user-photo" src="" alt="" />
           <span id="user-name"></span>
@@ -47,6 +60,22 @@
     </header>
 
     <main class="content">
+
+      <!-- ===== DASHBOARD STATS ===== -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <span class="stat-label">Total Client</span>
+          <span id="stat-clients" class="stat-value">0</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-label">Total Project</span>
+          <span id="stat-projects" class="stat-value">0</span>
+        </div>
+        <div class="stat-card stat-card-accent">
+          <span class="stat-label">Total Income</span>
+          <span id="stat-income" class="stat-value">0</span>
+        </div>
+      </div>
 
       <div class="toolbar">
         <div class="toolbar-left">
@@ -77,7 +106,7 @@
     </main>
   </div>
 
-  <!-- ===== CLIENT FORM PANEL ===== -->
+  <!-- ===== CLIENT FORM PANEL (centered modal on desktop) ===== -->
   <div id="form-overlay" class="form-overlay hidden">
     <div class="form-panel">
       <div class="form-panel-head">
@@ -145,11 +174,14 @@
           <input type="url" id="f-website" placeholder="https://example.com" />
         </div>
 
+        <!-- ===== PROJECTS (unlimited, each with its own details) ===== -->
+        <div class="field">
+          <label>Projects</label>
+          <div id="project-list" class="project-list"></div>
+          <button type="button" id="add-project-btn" class="btn btn-outline btn-sm">+ Project যোগ করো</button>
+        </div>
+
         <div class="field-row">
-          <div class="field">
-            <label for="f-payment">Payment</label>
-            <input type="text" id="f-payment" placeholder="যেমন: 15,000 BDT" />
-          </div>
           <div class="field">
             <label for="f-payment-method">Payment Method</label>
             <select id="f-payment-method">
@@ -162,13 +194,6 @@
               <option value="custom">Custom…</option>
             </select>
             <input type="text" id="f-payment-method-custom" class="hidden custom-input" placeholder="মেথডের নাম লেখো" />
-          </div>
-        </div>
-
-        <div class="field-row">
-          <div class="field">
-            <label for="f-corrections">Total Correction</label>
-            <input type="number" id="f-corrections" min="0" value="0" />
           </div>
           <div class="field">
             <label for="f-status">Status</label>
@@ -196,6 +221,49 @@
       </form>
     </div>
   </div>
+
+  <!-- Template for one project block (cloned by JS) -->
+  <template id="project-block-template">
+    <div class="project-block" data-status="new">
+      <div class="project-block-head">
+        <span class="project-title">Project 1</span>
+        <button type="button" class="project-remove-btn" aria-label="Remove project">✕</button>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Payment</label>
+          <input type="number" min="0" class="p-payment" placeholder="15000" />
+        </div>
+        <div class="field">
+          <label>Correction</label>
+          <input type="number" min="0" class="p-correction" placeholder="0" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Start Date</label>
+          <input type="date" class="p-start" />
+        </div>
+        <div class="field">
+          <label>End Date</label>
+          <input type="date" class="p-end" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select class="p-status">
+          <option value="new">New</option>
+          <option value="ongoing">Ongoing</option>
+          <option value="queued">Queued</option>
+          <option value="delivered">Delivered</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Note</label>
+        <textarea class="p-note" rows="2" placeholder="এই প্রজেক্ট সম্পর্কে নোট…"></textarea>
+      </div>
+    </div>
+  </template>
 
   <div id="toast" class="toast hidden"></div>
 
