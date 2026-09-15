@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="bn">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -26,7 +26,7 @@
     <div class="login-card">
       <div class="login-mark">IS</div>
       <h1>Info Saver</h1>
-      <p class="login-sub">তোমার ক্লায়েন্টদের সব তথ্য, এক জায়গায় গোছানো।</p>
+      <p class="login-sub">All your client details, organized in one place.</p>
       <button id="google-login-btn" class="btn btn-google">
         <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
           <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.56 2.7-3.86 2.7-6.62Z"/>
@@ -34,7 +34,7 @@
           <path fill="#FBBC05" d="M3.94 10.68A5.4 5.4 0 0 1 3.66 9c0-.58.1-1.15.28-1.68V4.99H.94A9 9 0 0 0 0 9c0 1.45.35 2.83.94 4.01l3-2.33Z"/>
           <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.9 11.42 0 9 0A9 9 0 0 0 .94 4.99l3 2.33C4.65 5.18 6.64 3.58 9 3.58Z"/>
         </svg>
-        <span>Google দিয়ে সাইন ইন করো</span>
+        <span>Sign in with Google</span>
       </button>
     </div>
   </section>
@@ -55,53 +55,131 @@
           <img id="user-photo" src="" alt="" />
           <span id="user-name"></span>
         </div>
-        <button id="logout-btn" class="btn btn-ghost">সাইন আউট</button>
+        <button id="logout-btn" class="btn btn-ghost">Sign out</button>
       </div>
     </header>
 
+    <nav class="tabbar">
+      <div class="tabbar-left">
+        <button class="tab-btn active" data-tab="mine">My Client</button>
+        <button class="tab-btn" data-tab="shared">Shared <span id="incoming-badge" class="tab-badge hidden">0</span></button>
+        <button class="tab-btn" data-tab="users">Users</button>
+      </div>
+      <label class="share-toggle">
+        <span>Allow share requests</span>
+        <span class="switch">
+          <input type="checkbox" id="allow-share-toggle" checked />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
+      </label>
+    </nav>
+
     <main class="content">
 
-      <!-- ===== DASHBOARD STATS ===== -->
-      <div class="stats-row">
-        <div class="stat-card">
-          <span class="stat-label">Total Client</span>
-          <span id="stat-clients" class="stat-value">0</span>
+      <!-- ===== TAB: MY CLIENT ===== -->
+      <section id="tab-mine" class="tab-panel">
+        <div class="stats-row">
+          <div class="stat-card">
+            <span class="stat-label">Total Client</span>
+            <span id="stat-clients" class="stat-value">0</span>
+          </div>
+          <div class="stat-card">
+            <span class="stat-label">Total Project</span>
+            <span id="stat-projects" class="stat-value">0</span>
+          </div>
+          <div class="stat-card stat-card-accent">
+            <span class="stat-label">Total Income</span>
+            <span id="stat-income" class="stat-value">0</span>
+          </div>
         </div>
-        <div class="stat-card">
-          <span class="stat-label">Total Project</span>
-          <span id="stat-projects" class="stat-value">0</span>
-        </div>
-        <div class="stat-card stat-card-accent">
-          <span class="stat-label">Total Income</span>
-          <span id="stat-income" class="stat-value">0</span>
-        </div>
-      </div>
 
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <h2>ক্লায়েন্ট লেজার</h2>
-          <span id="client-count" class="count-tag">0 এন্ট্রি</span>
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2>Client Ledger</h2>
+            <span id="client-count" class="count-tag">0 entries</span>
+          </div>
+          <div class="toolbar-right">
+            <input id="search-input" type="search" placeholder="Search by name, brand, or phone…" />
+            <select id="status-filter">
+              <option value="all">All statuses</option>
+              <option value="new">New</option>
+              <option value="ongoing">Ongoing</option>
+              <option value="queued">Queued</option>
+              <option value="delivered">Delivered</option>
+            </select>
+            <button id="add-client-btn" class="btn btn-primary">+ New Client</button>
+          </div>
         </div>
-        <div class="toolbar-right">
-          <input id="search-input" type="search" placeholder="নাম, ব্র্যান্ড বা ফোন দিয়ে খোঁজো…" />
-          <select id="status-filter">
-            <option value="all">সব স্ট্যাটাস</option>
-            <option value="new">New</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="queued">Queued</option>
-            <option value="delivered">Delivered</option>
-          </select>
-          <button id="add-client-btn" class="btn btn-primary">+ নতুন ক্লায়েন্ট</button>
+
+        <div id="empty-state" class="empty-state hidden">
+          <div class="empty-mark">◇</div>
+          <h3>No entries yet</h3>
+          <p>Add your first client to start the ledger.</p>
         </div>
-      </div>
 
-      <div id="empty-state" class="empty-state hidden">
-        <div class="empty-mark">◇</div>
-        <h3>এখনও কোনো এন্ট্রি নেই</h3>
-        <p>প্রথম ক্লায়েন্টের তথ্য যোগ করে লেজার শুরু করো।</p>
-      </div>
+        <div id="client-grid" class="client-grid"></div>
+      </section>
 
-      <div id="client-grid" class="client-grid"></div>
+      <!-- ===== TAB: SHARED ===== -->
+      <section id="tab-shared" class="tab-panel hidden">
+
+        <div class="section-block">
+          <h2 class="section-title">Incoming Requests</h2>
+          <div id="incoming-requests-list" class="request-list"></div>
+          <p id="incoming-empty" class="muted-note hidden">No incoming share requests right now.</p>
+        </div>
+
+        <div class="section-block">
+          <h2 class="section-title">Sent Requests</h2>
+          <div id="sent-requests-list" class="request-list"></div>
+          <p id="sent-empty" class="muted-note hidden">You haven't sent any share requests yet.</p>
+        </div>
+
+        <div class="section-block">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <h2>Shared With You</h2>
+              <span id="shared-count" class="count-tag">0 entries</span>
+            </div>
+            <div class="toolbar-right">
+              <input id="shared-search-input" type="search" placeholder="Search by name, brand, or phone…" />
+              <select id="shared-status-filter">
+                <option value="all">All statuses</option>
+                <option value="new">New</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="queued">Queued</option>
+                <option value="delivered">Delivered</option>
+              </select>
+            </div>
+          </div>
+          <div id="shared-empty-state" class="empty-state hidden">
+            <div class="empty-mark">◇</div>
+            <h3>Nothing shared with you yet</h3>
+            <p>Accept a request, or ask a client owner to share one with you.</p>
+          </div>
+          <div id="shared-grid" class="client-grid"></div>
+        </div>
+
+      </section>
+
+      <!-- ===== TAB: USERS ===== -->
+      <section id="tab-users" class="tab-panel hidden">
+        <div class="toolbar">
+          <div class="toolbar-left">
+            <h2>All Users</h2>
+            <span id="users-count" class="count-tag">0 users</span>
+          </div>
+          <div class="toolbar-right">
+            <input id="users-search-input" type="search" placeholder="Search users…" />
+          </div>
+        </div>
+        <div id="users-empty-state" class="empty-state hidden">
+          <div class="empty-mark">◇</div>
+          <h3>No other users yet</h3>
+          <p>Once someone else signs in, they'll show up here.</p>
+        </div>
+        <div id="users-list" class="users-grid"></div>
+      </section>
 
     </main>
   </div>
@@ -110,8 +188,12 @@
   <div id="form-overlay" class="form-overlay hidden">
     <div class="form-panel">
       <div class="form-panel-head">
-        <h3 id="form-title">নতুন ক্লায়েন্ট যোগ করো</h3>
+        <h3 id="form-title">Add New Client</h3>
         <button id="close-form-btn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+
+      <div id="form-shared-note" class="shared-note hidden">
+        Shared client — changes are visible to everyone with access.
       </div>
 
       <form id="client-form" class="client-form">
@@ -131,11 +213,11 @@
         <div class="field-row">
           <div class="field">
             <label for="f-client-name">Client Name</label>
-            <input type="text" id="f-client-name" placeholder="যেমন: Rahim Uddin" required />
+            <input type="text" id="f-client-name" placeholder="e.g. Rahim Uddin" required />
           </div>
           <div class="field">
             <label for="f-brand-name">Brand Name</label>
-            <input type="text" id="f-brand-name" placeholder="যেমন: Rahim's Bakery" />
+            <input type="text" id="f-brand-name" placeholder="e.g. Rahim's Bakery" />
           </div>
         </div>
 
@@ -151,22 +233,22 @@
               <option value="Upwork">Upwork</option>
               <option value="custom">Custom…</option>
             </select>
-            <input type="text" id="f-found-from-custom" class="hidden custom-input" placeholder="সোর্সের নাম লেখো" />
+            <input type="text" id="f-found-from-custom" class="hidden custom-input" placeholder="Enter source name" />
           </div>
           <div class="field">
             <label for="f-phone">Phone Number</label>
             <div class="input-with-btn">
               <input type="tel" id="f-phone" placeholder="+8801XXXXXXXXX" />
-              <button type="button" id="check-whatsapp-btn" class="btn btn-outline btn-sm">WhatsApp চেক</button>
+              <button type="button" id="check-whatsapp-btn" class="btn btn-outline btn-sm">Check WhatsApp</button>
             </div>
-            <span class="hint">নম্বরটা WhatsApp-এ খোলা হবে যাচাইয়ের জন্য — অটো-ডিটেক্ট নয়।</span>
+            <span class="hint">Opens the number on WhatsApp to verify manually — not an automatic check.</span>
           </div>
         </div>
 
         <div class="field">
           <label>Facebook Page(s)</label>
           <div id="fb-page-list" class="repeatable-list"></div>
-          <button type="button" id="add-fb-page-btn" class="btn btn-outline btn-sm">+ পেজ যোগ করো</button>
+          <button type="button" id="add-fb-page-btn" class="btn btn-outline btn-sm">+ Add Page</button>
         </div>
 
         <div class="field">
@@ -178,7 +260,7 @@
         <div class="field">
           <label>Projects</label>
           <div id="project-list" class="project-list"></div>
-          <button type="button" id="add-project-btn" class="btn btn-outline btn-sm">+ Project যোগ করো</button>
+          <button type="button" id="add-project-btn" class="btn btn-outline btn-sm">+ Add Project</button>
         </div>
 
         <div class="field-row">
@@ -193,7 +275,7 @@
               <option value="Cash">Cash</option>
               <option value="custom">Custom…</option>
             </select>
-            <input type="text" id="f-payment-method-custom" class="hidden custom-input" placeholder="মেথডের নাম লেখো" />
+            <input type="text" id="f-payment-method-custom" class="hidden custom-input" placeholder="Enter method name" />
           </div>
           <div class="field">
             <label for="f-status">Status</label>
@@ -208,14 +290,18 @@
 
         <div class="field">
           <label for="f-note">Note</label>
-          <textarea id="f-note" rows="3" placeholder="অতিরিক্ত কোনো তথ্য বা মনে রাখার মতো কিছু…"></textarea>
+          <textarea id="f-note" rows="3" placeholder="Any extra info or something to remember…"></textarea>
+        </div>
+
+        <div class="field" id="share-from-form-field">
+          <button type="button" id="share-from-form-btn" class="btn btn-outline btn-sm">Share this client…</button>
         </div>
 
         <div class="form-actions">
-          <button type="button" id="delete-client-btn" class="btn btn-danger hidden">এন্ট্রি ডিলিট করো</button>
+          <button type="button" id="delete-client-btn" class="btn btn-danger hidden">Delete Entry</button>
           <div class="form-actions-right">
-            <button type="button" id="cancel-form-btn" class="btn btn-ghost">বাতিল</button>
-            <button type="submit" class="btn btn-primary">সেভ করো</button>
+            <button type="button" id="cancel-form-btn" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </div>
       </form>
@@ -260,10 +346,38 @@
       </div>
       <div class="field">
         <label>Note</label>
-        <textarea class="p-note" rows="2" placeholder="এই প্রজেক্ট সম্পর্কে নোট…"></textarea>
+        <textarea class="p-note" rows="2" placeholder="Notes about this project…"></textarea>
       </div>
     </div>
   </template>
+
+  <!-- ===== SHARE MODAL ===== -->
+  <div id="share-overlay" class="form-overlay hidden">
+    <div class="form-panel share-panel">
+      <div class="form-panel-head">
+        <h3>Share a Client</h3>
+        <button id="close-share-btn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <form id="share-form" class="client-form">
+        <div class="field">
+          <label for="share-client-select">Client</label>
+          <select id="share-client-select" required></select>
+        </div>
+        <div class="field">
+          <label for="share-user-select">Share with</label>
+          <select id="share-user-select" required></select>
+        </div>
+        <p id="share-form-hint" class="muted-note"></p>
+        <div class="form-actions">
+          <div></div>
+          <div class="form-actions-right">
+            <button type="button" id="cancel-share-btn" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-primary">Send Request</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="toast" class="toast hidden"></div>
 
