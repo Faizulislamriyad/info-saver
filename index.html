@@ -102,10 +102,8 @@
             <input id="search-input" type="search" placeholder="Search by name, brand, or phone…" />
             <select id="status-filter">
               <option value="all">All statuses</option>
-              <option value="new">New</option>
-              <option value="ongoing">Ongoing</option>
-              <option value="queued">Queued</option>
-              <option value="delivered">Delivered</option>
+              <option value="regular">Regular</option>
+              <option value="not-in-touch">Not In Touch</option>
             </select>
             <button id="add-client-btn" class="btn btn-primary">+ New Client</button>
           </div>
@@ -145,10 +143,8 @@
               <input id="shared-search-input" type="search" placeholder="Search by name, brand, or phone…" />
               <select id="shared-status-filter">
                 <option value="all">All statuses</option>
-                <option value="new">New</option>
-                <option value="ongoing">Ongoing</option>
-                <option value="queued">Queued</option>
-                <option value="delivered">Delivered</option>
+                <option value="regular">Regular</option>
+                <option value="not-in-touch">Not In Touch</option>
               </select>
             </div>
           </div>
@@ -202,11 +198,13 @@
         <div class="field-row">
           <div class="field">
             <label for="f-project-start">Project Start</label>
-            <input type="date" id="f-project-start" required />
+            <input type="text" id="f-project-start" class="date-text" placeholder="dd/mm/yyyy" required />
+            <span class="hint">dd/mm/yyyy — earliest 5 years back</span>
           </div>
           <div class="field">
             <label for="f-delivery-time">Delivery Time</label>
-            <input type="date" id="f-delivery-time" />
+            <input type="text" id="f-delivery-time" class="date-text" placeholder="dd/mm/yyyy" />
+            <span class="hint">dd/mm/yyyy</span>
           </div>
         </div>
 
@@ -217,7 +215,18 @@
           </div>
           <div class="field">
             <label for="f-brand-name">Brand Name</label>
-            <input type="text" id="f-brand-name" placeholder="e.g. Rahim's Bakery" />
+            <div class="brand-row">
+              <input type="text" id="f-brand-name" placeholder="e.g. Rahim's Bakery" />
+              <button type="button" id="brand-logo-btn" class="logo-btn" title="Upload brand logo" aria-label="Upload brand logo">
+                <img id="brand-logo-img" class="hidden" alt="" />
+                <span id="brand-logo-plus">+</span>
+              </button>
+            </div>
+            <div class="logo-hint-row">
+              <span class="hint">Click the box to add a brand logo.</span>
+              <button type="button" id="brand-logo-clear" class="link-btn hidden">Remove logo</button>
+            </div>
+            <input type="file" id="f-brand-logo" accept="image/*" class="hidden" />
           </div>
         </div>
 
@@ -237,11 +246,11 @@
           </div>
           <div class="field">
             <label for="f-phone">Phone Number</label>
-            <div class="input-with-btn">
-              <input type="tel" id="f-phone" placeholder="+8801XXXXXXXXX" />
-              <button type="button" id="check-whatsapp-btn" class="btn btn-outline btn-sm">Check WhatsApp</button>
-            </div>
-            <span class="hint">Opens the number on WhatsApp to verify manually — not an automatic check.</span>
+            <input type="tel" id="f-phone" placeholder="+8801XXXXXXXXX" />
+            <label class="check-line" for="f-whatsapp">
+              <input type="checkbox" id="f-whatsapp" />
+              <span>Available on WhatsApp</span>
+            </label>
           </div>
         </div>
 
@@ -280,10 +289,8 @@
           <div class="field">
             <label for="f-status">Status</label>
             <select id="f-status">
-              <option value="new">New</option>
-              <option value="ongoing">Ongoing</option>
-              <option value="queued">Queued</option>
-              <option value="delivered">Delivered</option>
+              <option value="regular">Regular</option>
+              <option value="not-in-touch">Not In Touch</option>
             </select>
           </div>
         </div>
@@ -328,11 +335,11 @@
       <div class="field-row">
         <div class="field">
           <label>Start Date</label>
-          <input type="date" class="p-start" />
+          <input type="text" class="p-start date-text" placeholder="dd/mm/yyyy" />
         </div>
         <div class="field">
           <label>End Date</label>
-          <input type="date" class="p-end" />
+          <input type="text" class="p-end date-text" placeholder="dd/mm/yyyy" />
         </div>
       </div>
       <div class="field">

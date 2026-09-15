@@ -92,7 +92,7 @@ const fBrandName = document.getElementById("f-brand-name");
 const fFoundFrom = document.getElementById("f-found-from");
 const fFoundFromCustom = document.getElementById("f-found-from-custom");
 const fPhone = document.getElementById("f-phone");
-const checkWhatsappBtn = document.getElementById("check-whatsapp-btn");
+const fWhatsapp = document.getElementById("f-whatsapp");
 const fbPageList = document.getElementById("fb-page-list");
 const addFbPageBtn = document.getElementById("add-fb-page-btn");
 const fWebsite = document.getElementById("f-website");
@@ -103,6 +103,13 @@ const fPaymentMethod = document.getElementById("f-payment-method");
 const fPaymentMethodCustom = document.getElementById("f-payment-method-custom");
 const fStatus = document.getElementById("f-status");
 const fNote = document.getElementById("f-note");
+
+/* ---------------- DOM refs: brand logo ---------------- */
+const brandLogoBtn = document.getElementById("brand-logo-btn");
+const brandLogoImg = document.getElementById("brand-logo-img");
+const brandLogoPlus = document.getElementById("brand-logo-plus");
+const brandLogoClear = document.getElementById("brand-logo-clear");
+const fBrandLogo = document.getElementById("f-brand-logo");
 
 /* ---------------- DOM refs: share modal ---------------- */
 const shareOverlay = document.getElementById("share-overlay");
@@ -129,6 +136,9 @@ let allUsers = []; // every other user who has signed in
 let incomingRequests = []; // pending requests sent to me
 let sentRequests = []; // requests I've sent (any status)
 
+let brandLogoData = ""; // data URL of the current form's brand logo ("" = none)
+let lastAutoProjectStart = ""; // last value we auto-pushed into Project 1's start date
+
 /* ---------------- Theme (day / night) ---------------- */
 function applyTheme(theme) {
   if (theme === "light") {
@@ -145,6 +155,105 @@ themeToggleBtns.forEach((btn) => {
     applyTheme(isLight ? "dark" : "light");
   });
 });
+
+/* =========================================================
+   DATE HELPERS — store ISO (yyyy-mm-dd), show dd/mm/yyyy
+   ========================================================= */
+const DATE_MAX_YEARS_PAST = 5;
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+/** ISO (yyyy-mm-dd) → display (dd/mm/yyyy). Returns "" if not an ISO date. */
+function isoToDisplay(iso) {
+  if (!iso) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso).trim());
+  if (!m) return "";
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+/** display (dd/mm/yyyy) → ISO (yyyy-mm-dd). Returns null when invalid. */
+function displayToIso(value) {
+  const v = String(value || "").trim();
+  if (!v) return "";
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
+  if (!m) return null;
+  const d = Number(m[1]);
+  const mo = Number(m[2]);
+  const y = Number(m[3]);
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  const date = new Date(y, mo - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
+  return `${y}-${pad2(mo)}-${pad2(d)}`;
+}
+
+/** The oldest date the user is allowed to pick (5 years back). */
+function earliestAllowedIso() {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - DATE_MAX_YEARS_PAST);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** Returns an error message if the ISO date is out of the allowed range. */
+function dateRangeError(iso) {
+  const min = earliestAllowedIso();
+  if (iso < min) {
+    return `Dates can't be older than ${DATE_MAX_YEARS_PAST} years (earliest ${isoToDisplay(min)}).`;
+  }
+  return "";
+}
+
+/** Adds dd/mm/yyyy auto-slashing + blur validation to a text date input. */
+function wireDateInput(input) {
+  if (!input || input.dataset.dateWired === "1") return;
+  input.dataset.dateWired = "1";
+  input.setAttribute("inputmode", "numeric");
+  input.setAttribute("autocomplete", "off");
+
+  input.addEventListener("input", () => {
+    const digits = input.value.replace(/\D/g, "").slice(0, 8);
+    let out = digits.slice(0, 2);
+    if (digits.length > 2) out += "/" + digits.slice(2, 4);
+    if (digits.length > 4) out += "/" + digits.slice(4, 8);
+    input.value = out;
+  });
+
+  input.addEventListener("blur", () => {
+    const raw = input.value.trim();
+    if (!raw) return;
+    const iso = displayToIso(raw);
+    if (!iso) {
+      showToast("Use dd/mm/yyyy for dates.");
+      return;
+    }
+    const err = dateRangeError(iso);
+    if (err) showToast(err);
+    input.value = isoToDisplay(iso);
+  });
+}
+
+/**
+ * Reads + validates a date input, returning ISO (or "" when empty).
+ * Throws a friendly Error when the value is invalid.
+ */
+function readDateInput(input, label, { required = false } = {}) {
+  const raw = input.value.trim();
+  if (!raw) {
+    if (required) throw new Error(`${label} is required.`);
+    return "";
+  }
+  const iso = displayToIso(raw);
+  if (!iso) throw new Error(`Use dd/mm/yyyy for ${label}.`);
+  const err = dateRangeError(iso);
+  if (err) throw new Error(err);
+  input.value = isoToDisplay(iso);
+  return iso;
+}
+
+// The two top-level date fields live outside the project blocks.
+wireDateInput(fProjectStart);
+wireDateInput(fDeliveryTime);
 
 /* ---------------- Auth ---------------- */
 googleLoginBtn.addEventListener("click", async () => {
@@ -399,20 +508,29 @@ function buildClientCard(c, isShared) {
   const sharedByLine = isShared
     ? `<div class="card-shared-by">Shared by ${escapeHtml(c.ownerName || "another user")}</div>`
     : "";
+  const logoHtml = c.brandLogo
+    ? `<img class="card-logo" src="${escapeHtml(c.brandLogo)}" alt="" />`
+    : "";
 
   card.innerHTML = `
     <div class="card-top">
       <div>
-        <div class="card-name">${escapeHtml(c.clientName || "Unnamed")}</div>
-        <div class="card-brand">${escapeHtml(c.brandName || "—")}</div>
+        <div class="card-name-row">
+          ${logoHtml}
+          <div>
+            <div class="card-name">${escapeHtml(c.clientName || "Unnamed")}</div>
+            <div class="card-brand">${escapeHtml(c.brandName || "—")}</div>
+          </div>
+        </div>
         ${sharedByLine}
       </div>
-      <span class="status-pill status-${c.status || "new"}">${statusLabel}</span>
+      <span class="status-pill status-${c.status || "regular"}">${statusLabel}</span>
     </div>
     <div class="card-meta">
       <div><span>Found From</span><span>${escapeHtml(c.foundFrom || "—")}</span></div>
       <div><span>Phone</span><span>${escapeHtml(c.phone || "—")}</span></div>
-      <div><span>Delivery</span><span>${escapeHtml(c.deliveryTime || "—")}</span></div>
+      <div><span>WhatsApp</span><span>${c.whatsapp ? "Available" : "Not available"}</span></div>
+      <div><span>Delivery</span><span>${escapeHtml(isoToDisplay(c.deliveryTime) || "—")}</span></div>
       <div><span>Projects</span><span>${projects.length}</span></div>
       <div><span>Income</span><span>${projectIncome.toLocaleString("en-US")}</span></div>
     </div>
@@ -421,8 +539,16 @@ function buildClientCard(c, isShared) {
 }
 
 function statusLabelOf(status) {
-  const map = { new: "New", ongoing: "Ongoing", queued: "Queued", delivered: "Delivered" };
-  return map[status] || "New";
+  const map = {
+    regular: "Regular",
+    "not-in-touch": "Not In Touch",
+    // legacy values kept readable for older entries
+    new: "New",
+    ongoing: "Ongoing",
+    queued: "Queued",
+    delivered: "Delivered",
+  };
+  return map[status] || "Regular";
 }
 
 function escapeHtml(str) {
@@ -664,6 +790,74 @@ fPaymentMethod.addEventListener("change", () => {
   fPaymentMethodCustom.classList.toggle("hidden", fPaymentMethod.value !== "custom");
 });
 
+/* =========================================================
+   BRAND LOGO (resized in-browser, stored as a data URL)
+   ========================================================= */
+function setBrandLogo(dataUrl) {
+  brandLogoData = dataUrl || "";
+  if (brandLogoData) {
+    brandLogoImg.src = brandLogoData;
+    brandLogoImg.classList.remove("hidden");
+    brandLogoPlus.classList.add("hidden");
+    brandLogoClear.classList.remove("hidden");
+  } else {
+    brandLogoImg.removeAttribute("src");
+    brandLogoImg.classList.add("hidden");
+    brandLogoPlus.classList.remove("hidden");
+    brandLogoClear.classList.add("hidden");
+  }
+}
+
+brandLogoBtn.addEventListener("click", () => fBrandLogo.click());
+brandLogoClear.addEventListener("click", () => setBrandLogo(""));
+
+fBrandLogo.addEventListener("change", async () => {
+  const file = fBrandLogo.files && fBrandLogo.files[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    showToast("Please choose an image file.");
+    fBrandLogo.value = "";
+    return;
+  }
+  try {
+    const dataUrl = await resizeImageFile(file, 128);
+    setBrandLogo(dataUrl);
+  } catch (err) {
+    showToast("Couldn't read that image: " + err.message);
+  }
+  fBrandLogo.value = "";
+});
+
+/** Reads an image file and returns a small data URL (max `maxSize` px on the long side). */
+function resizeImageFile(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("file could not be read"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("that file isn't a valid image"));
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const isPng = file.type === "image/png";
+        let out = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", 0.85);
+        // Keep the Firestore document small — fall back to a lighter JPEG.
+        if (out.length > 120000) out = canvas.toDataURL("image/jpeg", 0.6);
+        resolve(out);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 /* ---------------- Facebook pages (unlimited, repeatable) ---------------- */
 function addFbPageRow(value = "") {
   const row = document.createElement("div");
@@ -683,11 +877,25 @@ function getFbPages() {
     .filter(Boolean);
 }
 
-/* ---------------- Projects (unlimited, each with own details) ---------------- */
+/* =========================================================
+   PROJECTS (unlimited, each with its own details)
+   ========================================================= */
 function renumberProjects() {
   projectList.querySelectorAll(".project-block").forEach((block, i) => {
     block.querySelector(".project-title").textContent = `Project ${i + 1}`;
   });
+}
+
+/** Copies the client's Project Start into Project 1 (only while it's untouched). */
+function prefillFirstProjectStart(force = false) {
+  const firstStart = projectList.querySelector(".project-block .p-start");
+  if (!firstStart) return;
+  const incoming = fProjectStart.value.trim();
+  const current = firstStart.value.trim();
+  if (force || current === "" || current === lastAutoProjectStart) {
+    firstStart.value = incoming;
+    lastAutoProjectStart = incoming;
+  }
 }
 
 function addProjectRow(project = {}) {
@@ -699,8 +907,14 @@ function addProjectRow(project = {}) {
 
   block.querySelector(".p-payment").value = project.payment ?? "";
   block.querySelector(".p-correction").value = project.correction ?? 0;
-  block.querySelector(".p-start").value = project.startDate || "";
-  block.querySelector(".p-end").value = project.endDate || "";
+
+  const startInput = block.querySelector(".p-start");
+  const endInput = block.querySelector(".p-end");
+  startInput.value = isoToDisplay(project.startDate || "");
+  endInput.value = isoToDisplay(project.endDate || "");
+  wireDateInput(startInput);
+  wireDateInput(endInput);
+
   block.querySelector(".p-status").value = status;
   block.querySelector(".p-note").value = project.note || "";
 
@@ -715,35 +929,30 @@ function addProjectRow(project = {}) {
   projectList.appendChild(block);
   renumberProjects();
 }
-addProjectBtn.addEventListener("click", () => addProjectRow());
+
+addProjectBtn.addEventListener("click", () => {
+  const wasEmpty = projectList.querySelectorAll(".project-block").length === 0;
+  addProjectRow();
+  if (wasEmpty) prefillFirstProjectStart(true);
+});
+
+// Project Start → Project 1's start date (auto, still editable afterwards).
+function syncProjectStartToFirstProject() {
+  prefillFirstProjectStart(false);
+}
+fProjectStart.addEventListener("input", syncProjectStartToFirstProject);
+fProjectStart.addEventListener("change", syncProjectStartToFirstProject);
 
 function getProjects() {
-  return Array.from(projectList.querySelectorAll(".project-block")).map((block) => ({
+  return Array.from(projectList.querySelectorAll(".project-block")).map((block, i) => ({
     payment: Number(block.querySelector(".p-payment").value) || 0,
     correction: Number(block.querySelector(".p-correction").value) || 0,
-    startDate: block.querySelector(".p-start").value,
-    endDate: block.querySelector(".p-end").value,
+    startDate: readDateInput(block.querySelector(".p-start"), `Project ${i + 1} start date`),
+    endDate: readDateInput(block.querySelector(".p-end"), `Project ${i + 1} end date`),
     status: block.querySelector(".p-status").value,
     note: block.querySelector(".p-note").value.trim(),
   }));
 }
-
-/* ---------------- WhatsApp check (best-effort) ---------------- */
-checkWhatsappBtn.addEventListener("click", () => {
-  const raw = fPhone.value.trim();
-  if (!raw) {
-    showToast("Enter a phone number first.");
-    return;
-  }
-  const digits = raw.replace(/[^\d]/g, "");
-  if (!digits) {
-    showToast("Enter a valid phone number.");
-    return;
-  }
-  // Opens the number on WhatsApp so you can see whether it has an account.
-  // There is no public API for this — it's a manual, one-click check.
-  window.open(`https://wa.me/${digits}`, "_blank", "noopener");
-});
 
 /* ---------------- Client form open/close ---------------- */
 function resetForm() {
@@ -753,12 +962,15 @@ function resetForm() {
   addFbPageRow();
   projectList.innerHTML = "";
   addProjectRow();
+  setBrandLogo("");
+  lastAutoProjectStart = "";
   fFoundFromCustom.classList.add("hidden");
   fPaymentMethodCustom.classList.add("hidden");
   deleteClientBtn.classList.add("hidden");
   shareFromFormField.classList.add("hidden");
   formSharedNote.classList.add("hidden");
   formTitle.textContent = "Add New Client";
+  fWhatsapp.checked = false;
 }
 
 function openForm(client = null) {
@@ -767,10 +979,11 @@ function openForm(client = null) {
     const isOwner = client.ownerUid === currentUser.uid;
     formTitle.textContent = "Edit Client";
     fIdInput.value = client.id;
-    fProjectStart.value = client.projectStart || "";
-    fDeliveryTime.value = client.deliveryTime || "";
+    fProjectStart.value = isoToDisplay(client.projectStart || "");
+    fDeliveryTime.value = isoToDisplay(client.deliveryTime || "");
     fClientName.value = client.clientName || "";
     fBrandName.value = client.brandName || "";
+    setBrandLogo(client.brandLogo || "");
 
     const knownSources = ["Facebook", "Self Message", "WhatsApp", "Instagram", "Fiverr", "Upwork"];
     if (client.foundFrom && !knownSources.includes(client.foundFrom)) {
@@ -782,6 +995,7 @@ function openForm(client = null) {
     }
 
     fPhone.value = client.phone || "";
+    fWhatsapp.checked = client.whatsapp === true;
 
     fbPageList.innerHTML = "";
     const pages = client.facebookPages && client.facebookPages.length ? client.facebookPages : [""];
@@ -792,6 +1006,7 @@ function openForm(client = null) {
     projectList.innerHTML = "";
     const projects = client.projects && client.projects.length ? client.projects : [{}];
     projects.forEach((p) => addProjectRow(p));
+    lastAutoProjectStart = "";
 
     const knownMethods = ["Bkash", "Nagad", "Bank", "PayPal", "Payoneer", "Cash"];
     if (client.paymentMethod && !knownMethods.includes(client.paymentMethod)) {
@@ -802,7 +1017,7 @@ function openForm(client = null) {
       fPaymentMethod.value = client.paymentMethod || "Bkash";
     }
 
-    fStatus.value = client.status || "new";
+    fStatus.value = client.status || "regular";
     fNote.value = client.note || "";
 
     if (isOwner) {
@@ -826,22 +1041,24 @@ formOverlay.addEventListener("click", (e) => {
   if (e.target === formOverlay) closeForm();
 });
 
-/* ---------------- Save / Delete ---------------- */
-clientForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  if (!currentUser) return;
-
+/* ---------------- Collect + validate the form ---------------- */
+function collectFormData() {
   const foundFrom = fFoundFrom.value === "custom" ? fFoundFromCustom.value.trim() : fFoundFrom.value;
   const paymentMethod =
     fPaymentMethod.value === "custom" ? fPaymentMethodCustom.value.trim() : fPaymentMethod.value;
 
-  const data = {
-    projectStart: fProjectStart.value,
-    deliveryTime: fDeliveryTime.value,
+  const projectStart = readDateInput(fProjectStart, "Project Start", { required: true });
+  const deliveryTime = readDateInput(fDeliveryTime, "Delivery Time");
+
+  return {
+    projectStart,
+    deliveryTime,
     clientName: fClientName.value.trim(),
     brandName: fBrandName.value.trim(),
+    brandLogo: brandLogoData,
     foundFrom,
     phone: fPhone.value.trim(),
+    whatsapp: fWhatsapp.checked,
     facebookPages: getFbPages(),
     website: fWebsite.value.trim(),
     projects: getProjects(),
@@ -850,6 +1067,20 @@ clientForm.addEventListener("submit", async (e) => {
     note: fNote.value.trim(),
     updatedAt: serverTimestamp(),
   };
+}
+
+/* ---------------- Save / Delete ---------------- */
+clientForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!currentUser) return;
+
+  let data;
+  try {
+    data = collectFormData();
+  } catch (err) {
+    showToast(err.message);
+    return;
+  }
 
   try {
     const id = fIdInput.value;
