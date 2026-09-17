@@ -103,7 +103,8 @@
             <select id="status-filter">
               <option value="all">All statuses</option>
               <option value="regular">Regular</option>
-              <option value="not-in-touch">Not In Touch</option>
+              <option value="not_regular">Not Regular</option>
+              <option value="not_in_touch">Not In Touch</option>
             </select>
             <button id="add-client-btn" class="btn btn-primary">+ New Client</button>
           </div>
@@ -144,7 +145,8 @@
               <select id="shared-status-filter">
                 <option value="all">All statuses</option>
                 <option value="regular">Regular</option>
-                <option value="not-in-touch">Not In Touch</option>
+                <option value="not_regular">Not Regular</option>
+                <option value="not_in_touch">Not In Touch</option>
               </select>
             </div>
           </div>
@@ -182,7 +184,7 @@
 
   <!-- ===== CLIENT FORM PANEL (centered modal on desktop) ===== -->
   <div id="form-overlay" class="form-overlay hidden">
-    <div class="form-panel">
+    <div class="form-panel form-panel-wide">
       <div class="form-panel-head">
         <h3 id="form-title">Add New Client</h3>
         <button id="close-form-btn" class="icon-btn" aria-label="Close">✕</button>
@@ -198,13 +200,12 @@
         <div class="field-row">
           <div class="field">
             <label for="f-project-start">Project Start</label>
-            <input type="text" id="f-project-start" class="date-text" placeholder="dd/mm/yyyy" required />
-            <span class="hint">dd/mm/yyyy — earliest 5 years back</span>
+            <input type="text" id="f-project-start" class="date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" required />
           </div>
           <div class="field">
-            <label for="f-delivery-time">Delivery Time</label>
-            <input type="text" id="f-delivery-time" class="date-text" placeholder="dd/mm/yyyy" />
-            <span class="hint">dd/mm/yyyy</span>
+            <label for="f-last-project">Last Project</label>
+            <input type="text" id="f-last-project" placeholder="—" disabled />
+            <span class="hint">Auto-filled from the latest project's delivery date.</span>
           </div>
         </div>
 
@@ -215,18 +216,15 @@
           </div>
           <div class="field">
             <label for="f-brand-name">Brand Name</label>
-            <div class="brand-row">
+            <div class="brand-name-row">
               <input type="text" id="f-brand-name" placeholder="e.g. Rahim's Bakery" />
-              <button type="button" id="brand-logo-btn" class="logo-btn" title="Upload brand logo" aria-label="Upload brand logo">
-                <img id="brand-logo-img" class="hidden" alt="" />
-                <span id="brand-logo-plus">+</span>
-              </button>
+              <label class="logo-upload-btn" title="Upload brand logo">
+                <img id="brand-logo-preview" class="hidden" alt="Logo preview" />
+                <span id="logo-upload-icon">＋</span>
+                <input type="file" id="f-brand-logo" accept="image/*" class="hidden" />
+              </label>
+              <button type="button" id="remove-logo-btn" class="icon-btn hidden" aria-label="Remove logo">✕</button>
             </div>
-            <div class="logo-hint-row">
-              <span class="hint">Click the box to add a brand logo.</span>
-              <button type="button" id="brand-logo-clear" class="link-btn hidden">Remove logo</button>
-            </div>
-            <input type="file" id="f-brand-logo" accept="image/*" class="hidden" />
           </div>
         </div>
 
@@ -247,8 +245,8 @@
           <div class="field">
             <label for="f-phone">Phone Number</label>
             <input type="tel" id="f-phone" placeholder="+8801XXXXXXXXX" />
-            <label class="check-line" for="f-whatsapp">
-              <input type="checkbox" id="f-whatsapp" />
+            <label class="checkbox-row">
+              <input type="checkbox" id="f-whatsapp-available" />
               <span>Available on WhatsApp</span>
             </label>
           </div>
@@ -290,7 +288,8 @@
             <label for="f-status">Status</label>
             <select id="f-status">
               <option value="regular">Regular</option>
-              <option value="not-in-touch">Not In Touch</option>
+              <option value="not_regular">Not Regular</option>
+              <option value="not_in_touch">Not In Touch</option>
             </select>
           </div>
         </div>
@@ -302,6 +301,15 @@
 
         <div class="field" id="share-from-form-field">
           <button type="button" id="share-from-form-btn" class="btn btn-outline btn-sm">Share this client…</button>
+        </div>
+
+        <div class="field hidden" id="shared-members-section">
+          <label>Shared With</label>
+          <div id="shared-members-list" class="member-list"></div>
+        </div>
+
+        <div class="field hidden" id="leave-shared-field">
+          <button type="button" id="leave-shared-btn" class="btn btn-outline btn-sm">Leave this shared client</button>
         </div>
 
         <div class="form-actions">
@@ -328,19 +336,14 @@
           <input type="number" min="0" class="p-payment" placeholder="15000" />
         </div>
         <div class="field">
-          <label>Correction</label>
-          <input type="number" min="0" class="p-correction" placeholder="0" />
+          <label>Correction <span class="hint-inline">(max 20)</span></label>
+          <input type="number" min="0" max="20" class="p-correction" placeholder="0" />
         </div>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Start Date</label>
-          <input type="text" class="p-start date-text" placeholder="dd/mm/yyyy" />
-        </div>
-        <div class="field">
-          <label>End Date</label>
-          <input type="text" class="p-end date-text" placeholder="dd/mm/yyyy" />
-        </div>
+      <div class="field">
+        <label>Delivery Date</label>
+        <input type="text" class="p-delivery date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+        <span class="hint p-delivery-hint">Can't be earlier than Project Start.</span>
       </div>
       <div class="field">
         <label>Status</label>
@@ -373,6 +376,15 @@
         <div class="field">
           <label for="share-user-select">Share with</label>
           <select id="share-user-select" required></select>
+        </div>
+        <div class="field">
+          <label for="share-expiry-select">Request expires</label>
+          <select id="share-expiry-select">
+            <option value="3d">3 Days</option>
+            <option value="7d">7 Days</option>
+            <option value="1m">1 Month</option>
+            <option value="none">No auto cancel</option>
+          </select>
         </div>
         <p id="share-form-hint" class="muted-note"></p>
         <div class="form-actions">

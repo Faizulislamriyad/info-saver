@@ -1,4 +1,4 @@
-// app.js — Info Saver client-ledger logic (clients, sharing, users directory)
+// app.js — Info Saver client-ledger logic
 
 import { auth, googleProvider, db } from "./firebase-config.js";
 import {
@@ -19,6 +19,8 @@ import {
   where,
   serverTimestamp,
   arrayUnion,
+  arrayRemove,
+  Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore.js";
 
 /* ---------------- DOM refs: shell ---------------- */
@@ -83,16 +85,24 @@ const cancelFormBtn = document.getElementById("cancel-form-btn");
 const deleteClientBtn = document.getElementById("delete-client-btn");
 const shareFromFormField = document.getElementById("share-from-form-field");
 const shareFromFormBtn = document.getElementById("share-from-form-btn");
+const sharedMembersSection = document.getElementById("shared-members-section");
+const sharedMembersList = document.getElementById("shared-members-list");
+const leaveSharedField = document.getElementById("leave-shared-field");
+const leaveSharedBtn = document.getElementById("leave-shared-btn");
 
 const fIdInput = document.getElementById("client-id");
 const fProjectStart = document.getElementById("f-project-start");
-const fDeliveryTime = document.getElementById("f-delivery-time");
+const fLastProject = document.getElementById("f-last-project");
 const fClientName = document.getElementById("f-client-name");
 const fBrandName = document.getElementById("f-brand-name");
+const fBrandLogoInput = document.getElementById("f-brand-logo");
+const brandLogoPreview = document.getElementById("brand-logo-preview");
+const logoUploadIcon = document.getElementById("logo-upload-icon");
+const removeLogoBtn = document.getElementById("remove-logo-btn");
 const fFoundFrom = document.getElementById("f-found-from");
 const fFoundFromCustom = document.getElementById("f-found-from-custom");
 const fPhone = document.getElementById("f-phone");
-const fWhatsapp = document.getElementById("f-whatsapp");
+const fWhatsappAvailable = document.getElementById("f-whatsapp-available");
 const fbPageList = document.getElementById("fb-page-list");
 const addFbPageBtn = document.getElementById("add-fb-page-btn");
 const fWebsite = document.getElementById("f-website");
@@ -104,18 +114,12 @@ const fPaymentMethodCustom = document.getElementById("f-payment-method-custom");
 const fStatus = document.getElementById("f-status");
 const fNote = document.getElementById("f-note");
 
-/* ---------------- DOM refs: brand logo ---------------- */
-const brandLogoBtn = document.getElementById("brand-logo-btn");
-const brandLogoImg = document.getElementById("brand-logo-img");
-const brandLogoPlus = document.getElementById("brand-logo-plus");
-const brandLogoClear = document.getElementById("brand-logo-clear");
-const fBrandLogo = document.getElementById("f-brand-logo");
-
 /* ---------------- DOM refs: share modal ---------------- */
 const shareOverlay = document.getElementById("share-overlay");
 const shareForm = document.getElementById("share-form");
 const shareClientSelect = document.getElementById("share-client-select");
 const shareUserSelect = document.getElementById("share-user-select");
+const shareExpirySelect = document.getElementById("share-expiry-select");
 const shareFormHint = document.getElementById("share-form-hint");
 const closeShareBtn = document.getElementById("close-share-btn");
 const cancelShareBtn = document.getElementById("cancel-share-btn");
@@ -123,6 +127,7 @@ const cancelShareBtn = document.getElementById("cancel-share-btn");
 /* ---------------- State ---------------- */
 let currentUser = null;
 let activeTab = "mine";
+let currentBrandLogo = ""; // data URL or ""
 
 let unsubClients = null;
 let unsubUsers = null;
@@ -131,13 +136,76 @@ let unsubSent = null;
 let unsubOwnUser = null;
 let suppressToggleEvent = false;
 
-let allClients = []; // clients where I'm a member (owner or accepted collaborator)
-let allUsers = []; // every other user who has signed in
-let incomingRequests = []; // pending requests sent to me
-let sentRequests = []; // requests I've sent (any status)
+let allClients = [];
+let allUsers = [];
+let incomingRequests = [];
+let sentRequests = [];
 
-let brandLogoData = ""; // data URL of the current form's brand logo ("" = none)
-let lastAutoProjectStart = ""; // last value we auto-pushed into Project 1's start date
+const PIN_KEY = "infosaver-pinned";
+let pinnedIds = new Set(JSON.parse(localStorage.getItem(PIN_KEY) || "[]"));
+
+/* ---------------- Date helpers (dd/mm/yyyy <-> yyyy-mm-dd) ---------------- */
+function attachDateMask(input) {
+  input.addEventListener("input", () => {
+    const digits = input.value.replace(/\D/g, "").slice(0, 8);
+    const parts = [];
+    if (digits.length > 0) parts.push(digits.slice(0, 2));
+    if (digits.length > 2) parts.push(digits.slice(2, 4));
+    if (digits.length > 4) parts.push(digits.slice(4, 8));
+    input.value = parts.join("/");
+  });
+}
+
+function dmyToIso(str) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((str || "").trim());
+  if (!m) return "";
+  const [, dd, mm, yyyy] = m;
+  const d = Number(dd),
+    mo = Number(mm);
+  if (d < 1 || d > 31 || mo < 1 || mo > 12) return "";
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function isoToDmy(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}/${m}/${y}`;
+}
+
+function minDateIso(yearsBack = 5) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - yearsBack);
+  return d.toISOString().slice(0, 10);
+}
+
+attachDateMask(fProjectStart);
+
+/* Project 1 auto-fills its Delivery Date from Project Start (convenience default) */
+fProjectStart.addEventListener("input", () => {
+  if (fProjectStart.value.length === 10) {
+    const firstBlock = projectList.querySelector(".project-block");
+    if (firstBlock) {
+      const deliveryInput = firstBlock.querySelector(".p-delivery");
+      if (deliveryInput && !deliveryInput.value) {
+        deliveryInput.value = fProjectStart.value;
+        updateLastProjectDisplay();
+      }
+    }
+  }
+});
+
+/* ---------------- Last Project (auto-computed, read-only) ---------------- */
+function updateLastProjectDisplay() {
+  const blocks = projectList.querySelectorAll(".project-block");
+  if (blocks.length === 0) {
+    fLastProject.value = "";
+    return;
+  }
+  const last = blocks[blocks.length - 1];
+  const dmy = last.querySelector(".p-delivery").value;
+  fLastProject.value = dmy || "";
+}
 
 /* ---------------- Theme (day / night) ---------------- */
 function applyTheme(theme) {
@@ -155,105 +223,6 @@ themeToggleBtns.forEach((btn) => {
     applyTheme(isLight ? "dark" : "light");
   });
 });
-
-/* =========================================================
-   DATE HELPERS — store ISO (yyyy-mm-dd), show dd/mm/yyyy
-   ========================================================= */
-const DATE_MAX_YEARS_PAST = 5;
-
-function pad2(n) {
-  return String(n).padStart(2, "0");
-}
-
-/** ISO (yyyy-mm-dd) → display (dd/mm/yyyy). Returns "" if not an ISO date. */
-function isoToDisplay(iso) {
-  if (!iso) return "";
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso).trim());
-  if (!m) return "";
-  return `${m[3]}/${m[2]}/${m[1]}`;
-}
-
-/** display (dd/mm/yyyy) → ISO (yyyy-mm-dd). Returns null when invalid. */
-function displayToIso(value) {
-  const v = String(value || "").trim();
-  if (!v) return "";
-  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v);
-  if (!m) return null;
-  const d = Number(m[1]);
-  const mo = Number(m[2]);
-  const y = Number(m[3]);
-  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-  const date = new Date(y, mo - 1, d);
-  if (date.getFullYear() !== y || date.getMonth() !== mo - 1 || date.getDate() !== d) return null;
-  return `${y}-${pad2(mo)}-${pad2(d)}`;
-}
-
-/** The oldest date the user is allowed to pick (5 years back). */
-function earliestAllowedIso() {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - DATE_MAX_YEARS_PAST);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
-
-/** Returns an error message if the ISO date is out of the allowed range. */
-function dateRangeError(iso) {
-  const min = earliestAllowedIso();
-  if (iso < min) {
-    return `Dates can't be older than ${DATE_MAX_YEARS_PAST} years (earliest ${isoToDisplay(min)}).`;
-  }
-  return "";
-}
-
-/** Adds dd/mm/yyyy auto-slashing + blur validation to a text date input. */
-function wireDateInput(input) {
-  if (!input || input.dataset.dateWired === "1") return;
-  input.dataset.dateWired = "1";
-  input.setAttribute("inputmode", "numeric");
-  input.setAttribute("autocomplete", "off");
-
-  input.addEventListener("input", () => {
-    const digits = input.value.replace(/\D/g, "").slice(0, 8);
-    let out = digits.slice(0, 2);
-    if (digits.length > 2) out += "/" + digits.slice(2, 4);
-    if (digits.length > 4) out += "/" + digits.slice(4, 8);
-    input.value = out;
-  });
-
-  input.addEventListener("blur", () => {
-    const raw = input.value.trim();
-    if (!raw) return;
-    const iso = displayToIso(raw);
-    if (!iso) {
-      showToast("Use dd/mm/yyyy for dates.");
-      return;
-    }
-    const err = dateRangeError(iso);
-    if (err) showToast(err);
-    input.value = isoToDisplay(iso);
-  });
-}
-
-/**
- * Reads + validates a date input, returning ISO (or "" when empty).
- * Throws a friendly Error when the value is invalid.
- */
-function readDateInput(input, label, { required = false } = {}) {
-  const raw = input.value.trim();
-  if (!raw) {
-    if (required) throw new Error(`${label} is required.`);
-    return "";
-  }
-  const iso = displayToIso(raw);
-  if (!iso) throw new Error(`Use dd/mm/yyyy for ${label}.`);
-  const err = dateRangeError(iso);
-  if (err) throw new Error(err);
-  input.value = isoToDisplay(iso);
-  return iso;
-}
-
-// The two top-level date fields live outside the project blocks.
-wireDateInput(fProjectStart);
-wireDateInput(fDeliveryTime);
 
 /* ---------------- Auth ---------------- */
 googleLoginBtn.addEventListener("click", async () => {
@@ -368,7 +337,6 @@ function subscribeToClients(uid) {
     q,
     (snapshot) => {
       allClients = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-      allClients.sort((a, b) => (b.projectStart || "").localeCompare(a.projectStart || ""));
       renderMine();
       renderShared();
       refreshShareClientOptions();
@@ -386,6 +354,7 @@ function subscribeToUsers(uid) {
       allUsers = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })).filter((u) => u.id !== uid);
       renderUsers();
       refreshShareUserOptions();
+      renderSharedMembers();
     },
     (err) => showToast("Couldn't load users: " + err.message)
   );
@@ -418,6 +387,32 @@ function subscribeToSent(uid) {
   );
 }
 
+/* ---------------- Periodic refresh (Users & Shared tabs) + expiry sweep ---------------- */
+setInterval(() => {
+  if (!currentUser) return;
+  sweepExpiredRequests();
+  renderUsers();
+  renderIncoming();
+  renderSent();
+}, 3000);
+
+async function sweepExpiredRequests() {
+  const now = Date.now();
+  const expired = [...incomingRequests, ...sentRequests].filter(
+    (r) => r.status === "pending" && r.expiresAt && r.expiresAt.toMillis?.() < now
+  );
+  const seen = new Set();
+  for (const req of expired) {
+    if (seen.has(req.id)) continue;
+    seen.add(req.id);
+    try {
+      await updateDoc(doc(db, "shareRequests", req.id), { status: "expired" });
+    } catch (err) {
+      /* best-effort; ignore permission races */
+    }
+  }
+}
+
 /* ---------------- Dashboard stats (My Client) ---------------- */
 function updateStats(mineClients) {
   let totalProjects = 0;
@@ -432,6 +427,23 @@ function updateStats(mineClients) {
   statIncome.textContent = totalIncome.toLocaleString("en-US");
 }
 
+/* ---------------- Sorting: pinned first, then latest Project Start ---------------- */
+function sortClients(list) {
+  return [...list].sort((a, b) => {
+    const pinDiff = (pinnedIds.has(b.id) ? 1 : 0) - (pinnedIds.has(a.id) ? 1 : 0);
+    if (pinDiff !== 0) return pinDiff;
+    return (b.projectStart || "").localeCompare(a.projectStart || "");
+  });
+}
+
+function togglePin(clientId) {
+  if (pinnedIds.has(clientId)) pinnedIds.delete(clientId);
+  else pinnedIds.add(clientId);
+  localStorage.setItem(PIN_KEY, JSON.stringify([...pinnedIds]));
+  renderMine();
+  renderShared();
+}
+
 /* ---------------- Rendering: My Client ---------------- */
 function renderMine() {
   if (!currentUser) {
@@ -440,7 +452,7 @@ function renderMine() {
     updateStats([]);
     return;
   }
-  const mine = allClients.filter((c) => c.ownerUid === currentUser.uid);
+  const mine = sortClients(allClients.filter((c) => c.ownerUid === currentUser.uid));
   updateStats(mine);
 
   const term = searchInput.value.trim().toLowerCase();
@@ -467,7 +479,7 @@ function renderShared() {
     sharedCount.textContent = "0 entries";
     return;
   }
-  const shared = allClients.filter((c) => c.ownerUid !== currentUser.uid);
+  const shared = sortClients(allClients.filter((c) => c.ownerUid !== currentUser.uid));
 
   const term = sharedSearchInput.value.trim().toLowerCase();
   const statusVal = sharedStatusFilter.value;
@@ -497,9 +509,15 @@ function filterClients(list, term, statusVal) {
   });
 }
 
+function statusLabelOf(status) {
+  const map = { regular: "Regular", not_regular: "Not Regular", not_in_touch: "Not In Touch" };
+  return map[status] || "Regular";
+}
+
 function buildClientCard(c, isShared) {
   const card = document.createElement("div");
   card.className = "client-card";
+  card.dataset.status = c.status || "regular";
   card.addEventListener("click", () => openForm(c));
 
   const statusLabel = statusLabelOf(c.status);
@@ -508,47 +526,40 @@ function buildClientCard(c, isShared) {
   const sharedByLine = isShared
     ? `<div class="card-shared-by">Shared by ${escapeHtml(c.ownerName || "another user")}</div>`
     : "";
-  const logoHtml = c.brandLogo
-    ? `<img class="card-logo" src="${escapeHtml(c.brandLogo)}" alt="" />`
-    : "";
+  const logoImg = c.brandLogo ? `<img class="card-logo" src="${c.brandLogo}" alt="" />` : "";
+  const pinned = pinnedIds.has(c.id);
+  const lastProjectDmy = isoToDmy(c.lastProject) || "—";
 
   card.innerHTML = `
     <div class="card-top">
-      <div>
-        <div class="card-name-row">
-          ${logoHtml}
-          <div>
-            <div class="card-name">${escapeHtml(c.clientName || "Unnamed")}</div>
-            <div class="card-brand">${escapeHtml(c.brandName || "—")}</div>
-          </div>
+      <div class="card-name-group">
+        ${logoImg}
+        <div>
+          <div class="card-name">${escapeHtml(c.clientName || "Unnamed")}</div>
+          <div class="card-brand">${escapeHtml(c.brandName || "—")}</div>
+          ${sharedByLine}
         </div>
-        ${sharedByLine}
       </div>
-      <span class="status-pill status-${c.status || "regular"}">${statusLabel}</span>
+      <div class="card-top-right">
+        <button type="button" class="pin-btn ${pinned ? "pinned" : ""}" aria-label="Pin">📌</button>
+        <span class="status-pill status-${c.status || "regular"}">${statusLabel}</span>
+      </div>
     </div>
     <div class="card-meta">
       <div><span>Found From</span><span>${escapeHtml(c.foundFrom || "—")}</span></div>
-      <div><span>Phone</span><span>${escapeHtml(c.phone || "—")}</span></div>
-      <div><span>WhatsApp</span><span>${c.whatsapp ? "Available" : "Not available"}</span></div>
-      <div><span>Delivery</span><span>${escapeHtml(isoToDisplay(c.deliveryTime) || "—")}</span></div>
+      <div><span>Phone</span><span>${escapeHtml(c.phone || "—")}${c.whatsappAvailable ? " (WA)" : ""}</span></div>
+      <div><span>Last Project</span><span>${lastProjectDmy}</span></div>
       <div><span>Projects</span><span>${projects.length}</span></div>
       <div><span>Income</span><span>${projectIncome.toLocaleString("en-US")}</span></div>
     </div>
   `;
-  return card;
-}
 
-function statusLabelOf(status) {
-  const map = {
-    regular: "Regular",
-    "not-in-touch": "Not In Touch",
-    // legacy values kept readable for older entries
-    new: "New",
-    ongoing: "Ongoing",
-    queued: "Queued",
-    delivered: "Delivered",
-  };
-  return map[status] || "Regular";
+  card.querySelector(".pin-btn").addEventListener("click", (e) => {
+    e.stopPropagation();
+    togglePin(c.id);
+  });
+
+  return card;
 }
 
 function escapeHtml(str) {
@@ -702,11 +713,7 @@ function refreshShareUserOptions(preselectId) {
     .map((u) => `<option value="${u.id}">${escapeHtml(u.name || u.email || "Unnamed user")}</option>`)
     .join("");
 
-  if (eligible.length === 0) {
-    shareFormHint.textContent = "No eligible users to share this client with right now.";
-  } else {
-    shareFormHint.textContent = "";
-  }
+  shareFormHint.textContent = eligible.length === 0 ? "No eligible users to share this client with right now." : "";
 
   if (current && eligible.some((u) => u.id === current)) shareUserSelect.value = current;
 }
@@ -722,6 +729,7 @@ function openShareModal({ clientId, userId } = {}) {
   }
   refreshShareClientOptions(clientId);
   refreshShareUserOptions(userId);
+  shareExpirySelect.value = "7d";
   shareOverlay.classList.remove("hidden");
 }
 
@@ -739,6 +747,15 @@ shareFromFormBtn.addEventListener("click", () => {
   closeForm();
   openShareModal({ clientId: id });
 });
+
+function computeExpiryTimestamp(option) {
+  if (option === "none") return null;
+  const d = new Date();
+  if (option === "3d") d.setDate(d.getDate() + 3);
+  else if (option === "7d") d.setDate(d.getDate() + 7);
+  else if (option === "1m") d.setMonth(d.getMonth() + 1);
+  return Timestamp.fromDate(d);
+}
 
 shareForm.addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -760,6 +777,7 @@ shareForm.addEventListener("submit", async (e) => {
 
   const client = allClients.find((c) => c.id === clientId);
   const toUser = allUsers.find((u) => u.id === toUid);
+  const expiresAt = computeExpiryTimestamp(shareExpirySelect.value);
 
   try {
     await addDoc(collection(db, "shareRequests"), {
@@ -773,12 +791,70 @@ shareForm.addEventListener("submit", async (e) => {
       toName: toUser?.name || "",
       toPhoto: toUser?.photoURL || "",
       status: "pending",
+      expiresAt,
       createdAt: serverTimestamp(),
     });
     showToast("Share request sent.");
     closeShareModal();
   } catch (err) {
     showToast("Couldn't send the request: " + err.message);
+  }
+});
+
+/* ---------------- Shared members: revoke (owner) / leave (member) ---------------- */
+function getUserById(uid) {
+  return allUsers.find((u) => u.id === uid);
+}
+
+function renderSharedMembers() {
+  const id = fIdInput.value;
+  if (!id) return;
+  const client = allClients.find((c) => c.id === id);
+  if (!client || client.ownerUid !== currentUser?.uid) return;
+
+  const others = (client.members || []).filter((uid) => uid !== client.ownerUid);
+  sharedMembersList.innerHTML = "";
+  if (others.length === 0) {
+    sharedMembersSection.classList.add("hidden");
+    return;
+  }
+  sharedMembersSection.classList.remove("hidden");
+  for (const uid of others) {
+    const u = getUserById(uid);
+    const row = document.createElement("div");
+    row.className = "member-row";
+    row.innerHTML = `
+      <div class="member-row-info">
+        <img src="${escapeHtml(u?.photoURL || "")}" alt="" onerror="this.style.visibility='hidden'" />
+        <span>${escapeHtml(u?.name || u?.email || "Unknown user")}</span>
+      </div>
+      <button type="button" class="btn btn-outline btn-sm revoke-member-btn">Remove</button>
+    `;
+    row.querySelector(".revoke-member-btn").addEventListener("click", () => revokeMember(client.id, uid));
+    sharedMembersList.appendChild(row);
+  }
+}
+
+async function revokeMember(clientId, uid) {
+  if (!confirm("Remove this user's access to the client?")) return;
+  try {
+    await updateDoc(doc(db, "clients", clientId), { members: arrayRemove(uid) });
+    showToast("Access removed.");
+  } catch (err) {
+    showToast("Couldn't remove access: " + err.message);
+  }
+}
+
+leaveSharedBtn.addEventListener("click", async () => {
+  const id = fIdInput.value;
+  if (!id || !currentUser) return;
+  if (!confirm("Leave this shared client? You'll lose access to it.")) return;
+  try {
+    await updateDoc(doc(db, "clients", id), { members: arrayRemove(currentUser.uid) });
+    showToast("You left the shared client.");
+    closeForm();
+  } catch (err) {
+    showToast("Couldn't leave: " + err.message);
   }
 });
 
@@ -790,73 +866,67 @@ fPaymentMethod.addEventListener("change", () => {
   fPaymentMethodCustom.classList.toggle("hidden", fPaymentMethod.value !== "custom");
 });
 
-/* =========================================================
-   BRAND LOGO (resized in-browser, stored as a data URL)
-   ========================================================= */
-function setBrandLogo(dataUrl) {
-  brandLogoData = dataUrl || "";
-  if (brandLogoData) {
-    brandLogoImg.src = brandLogoData;
-    brandLogoImg.classList.remove("hidden");
-    brandLogoPlus.classList.add("hidden");
-    brandLogoClear.classList.remove("hidden");
-  } else {
-    brandLogoImg.removeAttribute("src");
-    brandLogoImg.classList.add("hidden");
-    brandLogoPlus.classList.remove("hidden");
-    brandLogoClear.classList.add("hidden");
-  }
-}
-
-brandLogoBtn.addEventListener("click", () => fBrandLogo.click());
-brandLogoClear.addEventListener("click", () => setBrandLogo(""));
-
-fBrandLogo.addEventListener("change", async () => {
-  const file = fBrandLogo.files && fBrandLogo.files[0];
-  if (!file) return;
-  if (!file.type.startsWith("image/")) {
-    showToast("Please choose an image file.");
-    fBrandLogo.value = "";
-    return;
-  }
-  try {
-    const dataUrl = await resizeImageFile(file, 128);
-    setBrandLogo(dataUrl);
-  } catch (err) {
-    showToast("Couldn't read that image: " + err.message);
-  }
-  fBrandLogo.value = "";
-});
-
-/** Reads an image file and returns a small data URL (max `maxSize` px on the long side). */
-function resizeImageFile(file, maxSize) {
+/* ---------------- Brand logo upload ---------------- */
+function resizeImageToDataUrl(file, maxDim = 160, quality = 0.75) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("file could not be read"));
     reader.onload = () => {
       const img = new Image();
-      img.onerror = () => reject(new Error("that file isn't a valid image"));
       img.onload = () => {
-        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-        const w = Math.max(1, Math.round(img.width * scale));
-        const h = Math.max(1, Math.round(img.height * scale));
+        let { width, height } = img;
+        if (width > height) {
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
+          }
+        } else if (height > maxDim) {
+          width *= maxDim / height;
+          height = maxDim;
+        }
         const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-
-        const isPng = file.type === "image/png";
-        let out = canvas.toDataURL(isPng ? "image/png" : "image/jpeg", 0.85);
-        // Keep the Firestore document small — fall back to a lighter JPEG.
-        if (out.length > 120000) out = canvas.toDataURL("image/jpeg", 0.6);
-        resolve(out);
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
       };
+      img.onerror = reject;
       img.src = reader.result;
     };
+    reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
+
+function setBrandLogo(dataUrl) {
+  currentBrandLogo = dataUrl || "";
+  if (currentBrandLogo) {
+    brandLogoPreview.src = currentBrandLogo;
+    brandLogoPreview.classList.remove("hidden");
+    logoUploadIcon.classList.add("hidden");
+    removeLogoBtn.classList.remove("hidden");
+  } else {
+    brandLogoPreview.classList.add("hidden");
+    logoUploadIcon.classList.remove("hidden");
+    removeLogoBtn.classList.add("hidden");
+  }
+}
+
+fBrandLogoInput.addEventListener("change", async () => {
+  const file = fBrandLogoInput.files?.[0];
+  if (!file) return;
+  try {
+    const dataUrl = await resizeImageToDataUrl(file);
+    setBrandLogo(dataUrl);
+  } catch (err) {
+    showToast("Couldn't process that image.");
+  }
+  fBrandLogoInput.value = "";
+});
+
+removeLogoBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  setBrandLogo("");
+});
 
 /* ---------------- Facebook pages (unlimited, repeatable) ---------------- */
 function addFbPageRow(value = "") {
@@ -877,25 +947,11 @@ function getFbPages() {
     .filter(Boolean);
 }
 
-/* =========================================================
-   PROJECTS (unlimited, each with its own details)
-   ========================================================= */
+/* ---------------- Projects (unlimited, each with own details) ---------------- */
 function renumberProjects() {
   projectList.querySelectorAll(".project-block").forEach((block, i) => {
     block.querySelector(".project-title").textContent = `Project ${i + 1}`;
   });
-}
-
-/** Copies the client's Project Start into Project 1 (only while it's untouched). */
-function prefillFirstProjectStart(force = false) {
-  const firstStart = projectList.querySelector(".project-block .p-start");
-  if (!firstStart) return;
-  const incoming = fProjectStart.value.trim();
-  const current = firstStart.value.trim();
-  if (force || current === "" || current === lastAutoProjectStart) {
-    firstStart.value = incoming;
-    lastAutoProjectStart = incoming;
-  }
 }
 
 function addProjectRow(project = {}) {
@@ -907,16 +963,16 @@ function addProjectRow(project = {}) {
 
   block.querySelector(".p-payment").value = project.payment ?? "";
   block.querySelector(".p-correction").value = project.correction ?? 0;
-
-  const startInput = block.querySelector(".p-start");
-  const endInput = block.querySelector(".p-end");
-  startInput.value = isoToDisplay(project.startDate || "");
-  endInput.value = isoToDisplay(project.endDate || "");
-  wireDateInput(startInput);
-  wireDateInput(endInput);
-
+  const deliveryInput = block.querySelector(".p-delivery");
+  deliveryInput.value = isoToDmy(project.deliveryDate);
+  attachDateMask(deliveryInput);
+  deliveryInput.addEventListener("input", updateLastProjectDisplay);
   block.querySelector(".p-status").value = status;
   block.querySelector(".p-note").value = project.note || "";
+
+  block.querySelector(".p-correction").addEventListener("input", (e) => {
+    if (Number(e.target.value) > 20) e.target.value = 20;
+  });
 
   block.querySelector(".p-status").addEventListener("change", (e) => {
     block.dataset.status = e.target.value;
@@ -924,31 +980,20 @@ function addProjectRow(project = {}) {
   block.querySelector(".project-remove-btn").addEventListener("click", () => {
     block.remove();
     renumberProjects();
+    updateLastProjectDisplay();
   });
 
   projectList.appendChild(block);
   renumberProjects();
+  updateLastProjectDisplay();
 }
-
-addProjectBtn.addEventListener("click", () => {
-  const wasEmpty = projectList.querySelectorAll(".project-block").length === 0;
-  addProjectRow();
-  if (wasEmpty) prefillFirstProjectStart(true);
-});
-
-// Project Start → Project 1's start date (auto, still editable afterwards).
-function syncProjectStartToFirstProject() {
-  prefillFirstProjectStart(false);
-}
-fProjectStart.addEventListener("input", syncProjectStartToFirstProject);
-fProjectStart.addEventListener("change", syncProjectStartToFirstProject);
+addProjectBtn.addEventListener("click", () => addProjectRow());
 
 function getProjects() {
-  return Array.from(projectList.querySelectorAll(".project-block")).map((block, i) => ({
+  return Array.from(projectList.querySelectorAll(".project-block")).map((block) => ({
     payment: Number(block.querySelector(".p-payment").value) || 0,
-    correction: Number(block.querySelector(".p-correction").value) || 0,
-    startDate: readDateInput(block.querySelector(".p-start"), `Project ${i + 1} start date`),
-    endDate: readDateInput(block.querySelector(".p-end"), `Project ${i + 1} end date`),
+    correction: Math.min(Number(block.querySelector(".p-correction").value) || 0, 20),
+    deliveryDate: dmyToIso(block.querySelector(".p-delivery").value),
     status: block.querySelector(".p-status").value,
     note: block.querySelector(".p-note").value.trim(),
   }));
@@ -958,19 +1003,19 @@ function getProjects() {
 function resetForm() {
   clientForm.reset();
   fIdInput.value = "";
+  setBrandLogo("");
   fbPageList.innerHTML = "";
   addFbPageRow();
   projectList.innerHTML = "";
   addProjectRow();
-  setBrandLogo("");
-  lastAutoProjectStart = "";
   fFoundFromCustom.classList.add("hidden");
   fPaymentMethodCustom.classList.add("hidden");
   deleteClientBtn.classList.add("hidden");
   shareFromFormField.classList.add("hidden");
+  sharedMembersSection.classList.add("hidden");
+  leaveSharedField.classList.add("hidden");
   formSharedNote.classList.add("hidden");
   formTitle.textContent = "Add New Client";
-  fWhatsapp.checked = false;
 }
 
 function openForm(client = null) {
@@ -979,8 +1024,7 @@ function openForm(client = null) {
     const isOwner = client.ownerUid === currentUser.uid;
     formTitle.textContent = "Edit Client";
     fIdInput.value = client.id;
-    fProjectStart.value = isoToDisplay(client.projectStart || "");
-    fDeliveryTime.value = isoToDisplay(client.deliveryTime || "");
+    fProjectStart.value = isoToDmy(client.projectStart);
     fClientName.value = client.clientName || "";
     fBrandName.value = client.brandName || "";
     setBrandLogo(client.brandLogo || "");
@@ -995,7 +1039,7 @@ function openForm(client = null) {
     }
 
     fPhone.value = client.phone || "";
-    fWhatsapp.checked = client.whatsapp === true;
+    fWhatsappAvailable.checked = !!client.whatsappAvailable;
 
     fbPageList.innerHTML = "";
     const pages = client.facebookPages && client.facebookPages.length ? client.facebookPages : [""];
@@ -1006,7 +1050,7 @@ function openForm(client = null) {
     projectList.innerHTML = "";
     const projects = client.projects && client.projects.length ? client.projects : [{}];
     projects.forEach((p) => addProjectRow(p));
-    lastAutoProjectStart = "";
+    updateLastProjectDisplay();
 
     const knownMethods = ["Bkash", "Nagad", "Bank", "PayPal", "Payoneer", "Cash"];
     if (client.paymentMethod && !knownMethods.includes(client.paymentMethod)) {
@@ -1023,8 +1067,10 @@ function openForm(client = null) {
     if (isOwner) {
       deleteClientBtn.classList.remove("hidden");
       shareFromFormField.classList.remove("hidden");
+      renderSharedMembers();
     } else {
       formSharedNote.classList.remove("hidden");
+      leaveSharedField.classList.remove("hidden");
     }
   }
   formOverlay.classList.remove("hidden");
@@ -1041,46 +1087,52 @@ formOverlay.addEventListener("click", (e) => {
   if (e.target === formOverlay) closeForm();
 });
 
-/* ---------------- Collect + validate the form ---------------- */
-function collectFormData() {
-  const foundFrom = fFoundFrom.value === "custom" ? fFoundFromCustom.value.trim() : fFoundFrom.value;
-  const paymentMethod =
-    fPaymentMethod.value === "custom" ? fPaymentMethodCustom.value.trim() : fPaymentMethod.value;
-
-  const projectStart = readDateInput(fProjectStart, "Project Start", { required: true });
-  const deliveryTime = readDateInput(fDeliveryTime, "Delivery Time");
-
-  return {
-    projectStart,
-    deliveryTime,
-    clientName: fClientName.value.trim(),
-    brandName: fBrandName.value.trim(),
-    brandLogo: brandLogoData,
-    foundFrom,
-    phone: fPhone.value.trim(),
-    whatsapp: fWhatsapp.checked,
-    facebookPages: getFbPages(),
-    website: fWebsite.value.trim(),
-    projects: getProjects(),
-    paymentMethod,
-    status: fStatus.value,
-    note: fNote.value.trim(),
-    updatedAt: serverTimestamp(),
-  };
-}
-
 /* ---------------- Save / Delete ---------------- */
 clientForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
 
-  let data;
-  try {
-    data = collectFormData();
-  } catch (err) {
-    showToast(err.message);
+  const projectStartIso = dmyToIso(fProjectStart.value);
+  if (!projectStartIso) {
+    showToast("Enter Project Start as dd/mm/yyyy.");
     return;
   }
+  if (projectStartIso < minDateIso(5)) {
+    showToast("Project Start can't be more than 5 years in the past.");
+    return;
+  }
+
+  const projects = getProjects();
+  for (const p of projects) {
+    if (p.deliveryDate && p.deliveryDate < projectStartIso) {
+      showToast("A project's Delivery Date can't be before Project Start.");
+      return;
+    }
+  }
+
+  const foundFrom = fFoundFrom.value === "custom" ? fFoundFromCustom.value.trim() : fFoundFrom.value;
+  const paymentMethod =
+    fPaymentMethod.value === "custom" ? fPaymentMethodCustom.value.trim() : fPaymentMethod.value;
+
+  const lastProjectIso = projects.length ? projects[projects.length - 1].deliveryDate || "" : "";
+
+  const data = {
+    projectStart: projectStartIso,
+    lastProject: lastProjectIso,
+    clientName: fClientName.value.trim(),
+    brandName: fBrandName.value.trim(),
+    brandLogo: currentBrandLogo,
+    foundFrom,
+    phone: fPhone.value.trim(),
+    whatsappAvailable: fWhatsappAvailable.checked,
+    facebookPages: getFbPages(),
+    website: fWebsite.value.trim(),
+    projects,
+    paymentMethod,
+    status: fStatus.value,
+    note: fNote.value.trim(),
+    updatedAt: serverTimestamp(),
+  };
 
   try {
     const id = fIdInput.value;
