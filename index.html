@@ -216,8 +216,7 @@
         <div class="field-row">
           <div class="field">
             <label for="f-project-start">Project Start</label>
-            <input type="text" id="f-project-start" placeholder="—" disabled />
-            <span class="hint">Auto-filled from the first project's Delivery Date.</span>
+            <input type="text" id="f-project-start" class="date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" required />
           </div>
           <div class="field">
             <label for="f-last-project">Last Project</label>
@@ -367,7 +366,7 @@
       <div class="field">
         <label>Delivery Date</label>
         <input type="text" class="p-delivery date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
-        <span class="hint p-delivery-hint">The first project's date becomes the client's Project Start.</span>
+        <span class="hint p-delivery-hint">Independent of Project Start. The latest one fills "Last Project".</span>
       </div>
       <div class="field">
         <label>Status</label>

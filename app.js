@@ -213,18 +213,16 @@ function minDateIso(yearsBack = 5) {
   return d.toISOString().slice(0, 10);
 }
 
-/* ---------------- Project Start + Last Project (both auto-computed) ----------------
-   Project Start is no longer typed by hand. It is derived from the Projects
-   section: the FIRST project block that has a Delivery Date supplies it.
-   Last Project still comes from the LAST project block's Delivery Date.      */
+/* ---------------- Project Start (manual) + Last Project (auto) ----------------
+   Project Start is typed by hand as dd/mm/yyyy and is NOT linked to the
+   Projects section in either direction. Last Project is still derived from
+   the last project block that has a Delivery Date.                        */
+attachDateMask(fProjectStart);
+
 function deliveryDmyValues() {
   return Array.from(projectList.querySelectorAll(".project-block")).map((b) =>
     b.querySelector(".p-delivery").value.trim()
   );
-}
-
-function computeProjectStartDmy() {
-  return deliveryDmyValues().find((v) => dmyToIso(v)) || "";
 }
 
 function computeLastProjectDmy() {
@@ -233,7 +231,6 @@ function computeLastProjectDmy() {
 }
 
 function updateDerivedDates() {
-  fProjectStart.value = computeProjectStartDmy();
   fLastProject.value = computeLastProjectDmy();
 }
 
@@ -1357,6 +1354,7 @@ function openForm(client = null) {
     const isOwner = client.ownerUid === currentUser.uid;
     formTitle.textContent = "Edit Client";
     fIdInput.value = client.id;
+    fProjectStart.value = isoToDmy(client.projectStart);
     fClientName.value = client.clientName || "";
     fBrandName.value = client.brandName || "";
     setBrandLogo(client.brandLogo || "");
@@ -1425,16 +1423,19 @@ clientForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
 
-  const projects = getProjects();
-
-  // Project Start is now derived from the Projects section, so at least one
-  // project needs a valid Delivery Date before the client can be saved.
-  const projectStartIso = projects.find((p) => p.deliveryDate)?.deliveryDate || "";
+  const projectStartIso = dmyToIso(fProjectStart.value);
   if (!projectStartIso) {
-    showToast("Add a Delivery Date to at least one project — it sets Project Start.");
+    showToast("Enter Project Start as dd/mm/yyyy.");
     return;
   }
   const floor = minDateIso(5);
+  if (projectStartIso < floor) {
+    showToast("Project Start can't be more than 5 years in the past.");
+    return;
+  }
+
+  // Delivery Dates are independent of Project Start — only the 5-year floor applies.
+  const projects = getProjects();
   for (const p of projects) {
     if (p.deliveryDate && p.deliveryDate < floor) {
       showToast("A Delivery Date can't be more than 5 years in the past.");
