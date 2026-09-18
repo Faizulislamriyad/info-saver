@@ -92,6 +92,10 @@
             <span class="stat-label">Total Income</span>
             <span id="stat-income" class="stat-value">0</span>
           </div>
+          <div class="stat-card stat-card-react">
+            <span class="stat-label"><i class="fa-solid fa-heart"></i> Total React</span>
+            <span id="stat-reacts" class="stat-value">0</span>
+          </div>
         </div>
 
         <div class="dash-controls">
@@ -369,6 +373,11 @@
         <span class="hint p-delivery-hint">Independent of Project Start. The latest one fills "Last Project".</span>
       </div>
       <div class="field">
+        <label>Payment Date</label>
+        <input type="text" class="p-payment-date date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+        <span class="hint">When the money actually came in. Optional.</span>
+      </div>
+      <div class="field">
         <label>Status</label>
         <select class="p-status">
           <option value="new">New</option>
@@ -437,6 +446,19 @@
           </div>
         </div>
 
+        <div class="react-row">
+          <button type="button" id="ud-react-btn" class="react-btn">
+            <i class="fa-solid fa-heart"></i>
+            <span id="ud-react-label">Love</span>
+          </button>
+          <span class="react-count"><b id="ud-react-count">0</b> react</span>
+        </div>
+
+        <div id="ud-socials-wrap" class="hidden">
+          <div class="ud-label">Social &amp; Contact</div>
+          <div id="ud-socials" class="social-links"></div>
+        </div>
+
         <div id="ud-body">
           <div class="user-detail-brand">
             <div class="ud-logo-wrap">
@@ -490,6 +512,33 @@
               <input type="file" id="p-brand-logo" accept="image/*" class="hidden" />
             </label>
             <button type="button" id="p-remove-logo-btn" class="icon-btn hidden" aria-label="Remove logo">✕</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Social &amp; Contact</label>
+          <p class="hint">Other users see these on your profile and can tap straight through to the app. Paste a full link or just your username.</p>
+          <div class="social-fields">
+            <div class="social-field">
+              <span class="social-ico ico-instagram"><i class="fa-brands fa-instagram"></i></span>
+              <input type="text" id="p-instagram" placeholder="Instagram username or link" />
+            </div>
+            <div class="social-field">
+              <span class="social-ico ico-facebook"><i class="fa-brands fa-facebook-f"></i></span>
+              <input type="text" id="p-facebook" placeholder="Facebook username or link" />
+            </div>
+            <div class="social-field">
+              <span class="social-ico ico-whatsapp"><i class="fa-brands fa-whatsapp"></i></span>
+              <input type="tel" id="p-whatsapp" placeholder="WhatsApp number with country code" />
+            </div>
+            <div class="social-field">
+              <span class="social-ico ico-x"><i class="fa-brands fa-x-twitter"></i></span>
+              <input type="text" id="p-x" placeholder="X (Twitter) username or link" />
+            </div>
+            <div class="social-field">
+              <span class="social-ico ico-youtube"><i class="fa-brands fa-youtube"></i></span>
+              <input type="text" id="p-youtube" placeholder="YouTube @handle or channel link" />
+            </div>
           </div>
         </div>
         <div class="form-actions">

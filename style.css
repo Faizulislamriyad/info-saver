@@ -330,7 +330,7 @@ body{
 /* ============ DASHBOARD STATS ============ */
 .stats-row{
   display:grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 14px;
   margin-bottom: 28px;
 }
@@ -885,4 +885,98 @@ button.user-chip{
   .share-toggle-dash .dash-toggle-text{ display:flex !important; }
   .share-toggle-dash{ padding: 12px 14px; }
   .card-links{ justify-content: flex-start; }
+}
+
+/* ===========================================================
+   ADDITIONS — love reacts, social links, payment date
+   =========================================================== */
+
+/* ---- Dashboard react stat ---- */
+.stat-card-react .stat-label i{ color: #E0685A; margin-right: 4px; }
+.stat-card-react .stat-value{ color: #E0685A; }
+
+/* ---- Love react button (user detail modal) ---- */
+.react-row{ display:flex; align-items:center; gap:12px; }
+.react-btn{
+  display:inline-flex; align-items:center; gap:8px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+.react-btn:hover{ border-color: #E0685A; color: #E0685A; }
+.react-btn i{ font-size: 13px; transition: transform .15s ease; }
+.react-btn:active i{ transform: scale(1.35); }
+.react-btn.reacted{
+  background: rgba(224,104,90,0.14);
+  border-color: rgba(224,104,90,0.45);
+  color: #E0685A;
+}
+.react-count{ font-size: 13px; color: var(--muted); }
+.react-count b{ font-family: var(--font-mono); color: var(--ink); }
+
+/* ---- React tally on a user card ---- */
+.user-card-reacts{
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  display:inline-flex; align-items:center; gap:5px;
+  align-self: flex-start;
+}
+.user-card-reacts.reacted{ color: #E0685A; }
+
+/* ---- Social fields (own profile form) ---- */
+.social-fields{ display:flex; flex-direction:column; gap:8px; }
+.social-field{ display:flex; align-items:center; gap:8px; }
+.social-field input{ flex:1; min-width:0; }
+.social-ico{
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  display:inline-flex; align-items:center; justify-content:center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
+/* ---- Social links (other user's profile) ---- */
+.social-links{ display:flex; flex-wrap:wrap; gap:8px; margin-top: 8px; }
+.social-link{
+  display:inline-flex; align-items:center; gap:7px;
+  padding: 7px 13px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12.5px;
+  text-decoration: none;
+  transition: border-color .15s ease, transform .1s ease;
+}
+.social-link:hover{ transform: translateY(-1px); }
+.social-link i{ font-size: 13px; }
+
+.ico-instagram i,   .social-link.ico-instagram i{ color: #E1306C; }
+.ico-facebook i,    .social-link.ico-facebook i{ color: #1877F2; }
+.ico-whatsapp i,    .social-link.ico-whatsapp i{ color: #25D366; }
+.ico-youtube i,     .social-link.ico-youtube i{ color: #FF0000; }
+.ico-x i,           .social-link.ico-x i{ color: var(--ink); }
+
+.social-link.ico-instagram:hover{ border-color: #E1306C; }
+.social-link.ico-facebook:hover{ border-color: #1877F2; }
+.social-link.ico-whatsapp:hover{ border-color: #25D366; }
+.social-link.ico-youtube:hover{ border-color: #FF0000; }
+.social-link.ico-x:hover{ border-color: var(--ink); }
+
+/* Four stat cards need a mid-width step before collapsing to one column. */
+@media (max-width: 900px){
+  .stats-row{ grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 520px){
+  .stats-row{ grid-template-columns: 1fr; }
 }

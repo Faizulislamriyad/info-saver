@@ -64,6 +64,22 @@ const udBrandName = document.getElementById("ud-brand-name");
 const udTotalProjects = document.getElementById("ud-total-projects");
 const udPrivate = document.getElementById("ud-private");
 const udShareBtn = document.getElementById("ud-share-btn");
+const udReactBtn = document.getElementById("ud-react-btn");
+const udReactLabel = document.getElementById("ud-react-label");
+const udReactCount = document.getElementById("ud-react-count");
+const udSocialsWrap = document.getElementById("ud-socials-wrap");
+const udSocials = document.getElementById("ud-socials");
+const statReacts = document.getElementById("stat-reacts");
+
+/* Social inputs on your own brand profile, keyed by the field name stored
+   under users/{uid}.socials */
+const socialInputs = {
+  instagram: document.getElementById("p-instagram"),
+  facebook: document.getElementById("p-facebook"),
+  whatsapp: document.getElementById("p-whatsapp"),
+  x: document.getElementById("p-x"),
+  youtube: document.getElementById("p-youtube"),
+};
 
 /* ---------------- DOM refs: own brand profile modal ---------------- */
 const myProfileBtn = document.getElementById("my-profile-btn");
@@ -168,12 +184,14 @@ let unsubUsers = null;
 let unsubIncoming = null;
 let unsubSent = null;
 let unsubOwnUser = null;
+let unsubReactions = null;
 let suppressToggleEvent = false;
 
 let allClients = [];
 let allUsers = [];
 let incomingRequests = [];
 let sentRequests = [];
+let allReactions = []; // { id, fromUid, toUid }
 
 const PIN_KEY = "infosaver-pinned";
 let pinnedIds = new Set(JSON.parse(localStorage.getItem(PIN_KEY) || "[]"));
@@ -283,12 +301,16 @@ onAuthStateChanged(auth, async (user) => {
     subscribeToUsers(user.uid);
     subscribeToIncoming(user.uid);
     subscribeToSent(user.uid);
+    subscribeToReactions();
   } else {
     loginScreen.classList.remove("hidden");
     appShell.classList.add("hidden");
-    [unsubClients, unsubUsers, unsubIncoming, unsubSent, unsubOwnUser].forEach((fn) => fn && fn());
+    [unsubClients, unsubUsers, unsubIncoming, unsubSent, unsubOwnUser, unsubReactions].forEach(
+      (fn) => fn && fn()
+    );
     allClients = [];
     allUsers = [];
+    allReactions = [];
     myProfile = null;
     lastSyncedProjectCount = null;
     incomingRequests = [];
@@ -315,6 +337,7 @@ async function ensureUserProfile(user) {
       shareClientInfo: true,
       brandName: "",
       brandLogo: "",
+      socials: { instagram: "", facebook: "", whatsapp: "", x: "", youtube: "" },
       totalProjects: 0,
       totalClients: 0,
       createdAt: serverTimestamp(),
@@ -501,6 +524,115 @@ async function sweepExpiredRequests() {
   }
 }
 
+/* ---------------- Love reacts (reactions/{fromUid__toUid}) ----------------
+   One document per (giver, receiver) pair, so a user can react to another
+   user exactly once and toggling simply creates or deletes that doc.
+   Counting happens client-side off the live snapshot.                     */
+function reactionId(fromUid, toUid) {
+  return `${fromUid}__${toUid}`;
+}
+
+function subscribeToReactions() {
+  if (unsubReactions) unsubReactions();
+  unsubReactions = onSnapshot(
+    collection(db, "reactions"),
+    (snapshot) => {
+      allReactions = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      updateReactStat();
+      renderUsers();
+      if (userDetailId) renderUserDetail();
+    },
+    (err) => showToast("Couldn't load reacts: " + err.message)
+  );
+}
+
+function reactCountFor(uid) {
+  return allReactions.filter((r) => r.toUid === uid).length;
+}
+
+function iReactedTo(uid) {
+  if (!currentUser) return false;
+  return allReactions.some((r) => r.toUid === uid && r.fromUid === currentUser.uid);
+}
+
+function updateReactStat() {
+  const total = currentUser ? reactCountFor(currentUser.uid) : 0;
+  statReacts.textContent = total.toLocaleString("en-US");
+}
+
+async function toggleReact(toUid) {
+  if (!currentUser || toUid === currentUser.uid) return;
+  const ref = doc(db, "reactions", reactionId(currentUser.uid, toUid));
+  const already = iReactedTo(toUid);
+  try {
+    if (already) {
+      await deleteDoc(ref);
+    } else {
+      await setDoc(ref, {
+        fromUid: currentUser.uid,
+        toUid,
+        createdAt: serverTimestamp(),
+      });
+    }
+  } catch (err) {
+    showToast("Couldn't update your react: " + err.message);
+  }
+}
+
+/* ---------------- Social profile links ----------------
+   Each field accepts either a bare handle/number or a full URL. The URLs
+   below are the ones the Instagram / Facebook / WhatsApp / X / YouTube
+   mobile apps register, so on a phone they hand off to the app itself. */
+const SOCIAL_META = {
+  instagram: { label: "Instagram", icon: "fa-brands fa-instagram", cls: "ico-instagram" },
+  facebook: { label: "Facebook", icon: "fa-brands fa-facebook-f", cls: "ico-facebook" },
+  whatsapp: { label: "WhatsApp", icon: "fa-brands fa-whatsapp", cls: "ico-whatsapp" },
+  x: { label: "X", icon: "fa-brands fa-x-twitter", cls: "ico-x" },
+  youtube: { label: "YouTube", icon: "fa-brands fa-youtube", cls: "ico-youtube" },
+};
+
+function socialUrl(key, raw) {
+  const value = (raw || "").trim();
+  if (!value) return "";
+
+  // A pasted full link is used as-is (after validation).
+  if (/^https?:\/\//i.test(value) || /^[\w-]+\.[\w.-]+\//.test(value)) {
+    return normalizeUrl(value);
+  }
+
+  const handle = value.replace(/^@/, "").trim();
+  switch (key) {
+    case "instagram":
+      return `https://www.instagram.com/${encodeURIComponent(handle)}`;
+    case "facebook":
+      return `https://www.facebook.com/${encodeURIComponent(handle)}`;
+    case "whatsapp": {
+      const digits = value.replace(/\D/g, "");
+      return digits.length >= 7 ? `https://wa.me/${digits}` : "";
+    }
+    case "x":
+      return `https://x.com/${encodeURIComponent(handle)}`;
+    case "youtube":
+      return `https://www.youtube.com/@${encodeURIComponent(handle)}`;
+    default:
+      return "";
+  }
+}
+
+function buildSocialLinks(socials = {}) {
+  return Object.entries(SOCIAL_META)
+    .map(([key, meta]) => {
+      const href = socialUrl(key, socials[key]);
+      if (!href) return "";
+      return `<a class="social-link ${meta.cls}" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="${meta.label}">
+        <i class="${meta.icon}"></i><span>${meta.label}</span>
+      </a>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+
 /* ---------------- Dashboard stats (My Client) ---------------- */
 function updateStats(mineClients) {
   let totalProjects = 0;
@@ -513,6 +645,7 @@ function updateStats(mineClients) {
   statClients.textContent = mineClients.length.toLocaleString("en-US");
   statProjects.textContent = totalProjects.toLocaleString("en-US");
   statIncome.textContent = totalIncome.toLocaleString("en-US");
+  updateReactStat();
 }
 
 /* ---------------- Sorting: pinned first, then latest Project Start ---------------- */
@@ -721,6 +854,9 @@ function renderUsers() {
       <span class="user-card-badge ${accepts ? "badge-open" : "badge-closed"}">
         ${accepts ? "Accepts requests" : "Not accepting requests"}
       </span>
+      <span class="user-card-reacts ${iReactedTo(u.id) ? "reacted" : ""}">
+        <i class="fa-solid fa-heart"></i> ${reactCountFor(u.id).toLocaleString("en-US")}
+      </span>
       <button type="button" class="btn btn-outline btn-sm share-with-user-btn" ${accepts ? "" : "disabled"}>
         Share a client
       </button>
@@ -780,7 +916,23 @@ function renderUserDetail() {
   const canShare = u.allowShareRequests !== false;
   udShareBtn.disabled = !canShare;
   udShareBtn.textContent = canShare ? "Share a client" : "Not accepting requests";
+
+  // Love react
+  const reacted = iReactedTo(u.id);
+  udReactBtn.classList.toggle("reacted", reacted);
+  udReactBtn.setAttribute("aria-pressed", String(reacted));
+  udReactLabel.textContent = reacted ? "Loved" : "Love";
+  udReactCount.textContent = reactCountFor(u.id).toLocaleString("en-US");
+
+  // Social + contact links
+  const socialHtml = buildSocialLinks(u.socials || {});
+  udSocials.innerHTML = socialHtml;
+  udSocialsWrap.classList.toggle("hidden", !socialHtml);
 }
+
+udReactBtn.addEventListener("click", () => {
+  if (userDetailId) toggleReact(userDetailId);
+});
 
 function closeUserDetail() {
   userOverlay.classList.add("hidden");
@@ -1176,6 +1328,10 @@ function setMyProfileLogo(dataUrl) {
 function openMyProfile() {
   if (!currentUser) return;
   pBrandName.value = myProfile?.brandName || "";
+  const socials = myProfile?.socials || {};
+  Object.entries(socialInputs).forEach(([key, input]) => {
+    input.value = socials[key] || "";
+  });
   setMyProfileLogo(myProfile?.brandLogo || "");
   profileOverlay.classList.remove("hidden");
 }
@@ -1210,12 +1366,17 @@ pRemoveLogoBtn.addEventListener("click", (e) => {
 profileForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
+  const socials = {};
+  Object.entries(socialInputs).forEach(([key, input]) => {
+    socials[key] = input.value.trim();
+  });
   try {
     await setDoc(
       doc(db, "users", currentUser.uid),
       {
         brandName: pBrandName.value.trim(),
         brandLogo: myProfileLogo,
+        socials,
         updatedAt: serverTimestamp(),
       },
       { merge: true }
@@ -1274,6 +1435,9 @@ function addProjectRow(project = {}) {
   deliveryInput.value = isoToDmy(project.deliveryDate);
   attachDateMask(deliveryInput);
   deliveryInput.addEventListener("input", updateLastProjectDisplay);
+  const paymentDateInput = block.querySelector(".p-payment-date");
+  paymentDateInput.value = isoToDmy(project.paymentDate);
+  attachDateMask(paymentDateInput);
   block.querySelector(".p-status").value = status;
   block.querySelector(".p-note").value = project.note || "";
 
@@ -1321,6 +1485,7 @@ function getProjects() {
       payment: status === "delivered" ? Number(block.querySelector(".p-payment").value) || 0 : 0,
       correction: Math.min(Number(block.querySelector(".p-correction").value) || 0, 20),
       deliveryDate: dmyToIso(block.querySelector(".p-delivery").value),
+      paymentDate: dmyToIso(block.querySelector(".p-payment-date").value),
       status,
       note: block.querySelector(".p-note").value.trim(),
     };
@@ -1439,6 +1604,10 @@ clientForm.addEventListener("submit", async (e) => {
   for (const p of projects) {
     if (p.deliveryDate && p.deliveryDate < floor) {
       showToast("A Delivery Date can't be more than 5 years in the past.");
+      return;
+    }
+    if (p.paymentDate && p.paymentDate < floor) {
+      showToast("A Payment Date can't be more than 5 years in the past.");
       return;
     }
   }
