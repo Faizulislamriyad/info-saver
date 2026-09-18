@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
 <link rel="stylesheet" href="style.css" />
 <script>
   // Apply saved theme before paint so there's no flash of the wrong mode.
@@ -51,10 +52,10 @@
         <button id="theme-toggle" class="theme-toggle" aria-label="Toggle day/night mode" title="Day / Night mode">
           <span class="theme-icon-sun">☀</span><span class="theme-icon-moon">☾</span>
         </button>
-        <div class="user-chip">
+        <button type="button" id="my-profile-btn" class="user-chip" title="Edit your brand profile">
           <img id="user-photo" src="" alt="" />
           <span id="user-name"></span>
-        </div>
+        </button>
         <button id="logout-btn" class="btn btn-ghost">Sign out</button>
       </div>
     </header>
@@ -91,6 +92,21 @@
             <span class="stat-label">Total Income</span>
             <span id="stat-income" class="stat-value">0</span>
           </div>
+        </div>
+
+        <div class="dash-controls">
+          <label class="share-toggle share-toggle-dash">
+            <span class="dash-toggle-text">
+              <span class="dash-toggle-title">
+                <i class="fa-solid fa-share-nodes"></i> Share Client Info
+              </span>
+              <span id="share-info-hint" class="dash-toggle-sub">On — other users can see your brand and project count, and you can send share requests.</span>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="share-client-info-toggle" checked />
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </span>
+          </label>
         </div>
 
         <div class="toolbar">
@@ -200,7 +216,8 @@
         <div class="field-row">
           <div class="field">
             <label for="f-project-start">Project Start</label>
-            <input type="text" id="f-project-start" class="date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" required />
+            <input type="text" id="f-project-start" placeholder="—" disabled />
+            <span class="hint">Auto-filled from the first project's Delivery Date.</span>
           </div>
           <div class="field">
             <label for="f-last-project">Last Project</label>
@@ -260,7 +277,13 @@
 
         <div class="field">
           <label for="f-website">Website</label>
-          <input type="url" id="f-website" placeholder="https://example.com" />
+          <div class="link-input-row">
+            <input type="url" id="f-website" placeholder="https://example.com" />
+            <a id="open-website-btn" class="open-link-btn disabled" target="_blank" rel="noopener noreferrer"
+               title="Open in a new tab" aria-label="Open website in a new tab">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+          </div>
         </div>
 
         <!-- ===== PROJECTS (unlimited, each with its own details) ===== -->
@@ -334,6 +357,7 @@
         <div class="field">
           <label>Payment</label>
           <input type="number" min="0" class="p-payment" placeholder="15000" />
+          <span class="hint p-payment-hint hidden">Unlocks when this project's status is Delivered.</span>
         </div>
         <div class="field">
           <label>Correction <span class="hint-inline">(max 20)</span></label>
@@ -343,7 +367,7 @@
       <div class="field">
         <label>Delivery Date</label>
         <input type="text" class="p-delivery date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
-        <span class="hint p-delivery-hint">Can't be earlier than Project Start.</span>
+        <span class="hint p-delivery-hint">The first project's date becomes the client's Project Start.</span>
       </div>
       <div class="field">
         <label>Status</label>
@@ -392,6 +416,88 @@
           <div class="form-actions-right">
             <button type="button" id="cancel-share-btn" class="btn btn-ghost">Cancel</button>
             <button type="submit" class="btn btn-primary">Send Request</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ===== USER DETAIL MODAL (clicking someone in the Users tab) ===== -->
+  <div id="user-overlay" class="form-overlay hidden">
+    <div class="form-panel user-panel">
+      <div class="form-panel-head">
+        <h3>User Profile</h3>
+        <button id="close-user-btn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <div class="user-detail">
+        <div class="user-detail-head">
+          <img id="ud-photo" src="" alt="" onerror="this.style.visibility='hidden'" />
+          <div>
+            <div id="ud-name" class="user-detail-name"></div>
+            <div id="ud-email" class="user-detail-email"></div>
+          </div>
+        </div>
+
+        <div id="ud-body">
+          <div class="user-detail-brand">
+            <div class="ud-logo-wrap">
+              <img id="ud-brand-logo" alt="Brand logo" />
+              <span id="ud-logo-fallback"><i class="fa-regular fa-image"></i></span>
+            </div>
+            <div>
+              <div class="ud-label">Brand Name</div>
+              <div id="ud-brand-name" class="ud-value">—</div>
+            </div>
+          </div>
+
+          <div class="user-detail-stats">
+            <div class="stat-card">
+              <span class="stat-label">Total Projects</span>
+              <span id="ud-total-projects" class="stat-value">0</span>
+            </div>
+          </div>
+        </div>
+
+        <p id="ud-private" class="muted-note hidden">
+          This user has turned <b>Share Client Info</b> off, so their brand and project count are hidden.
+        </p>
+
+        <div class="form-actions">
+          <div></div>
+          <div class="form-actions-right">
+            <button type="button" id="ud-share-btn" class="btn btn-primary btn-sm">Share a client</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== MY BRAND PROFILE MODAL ===== -->
+  <div id="profile-overlay" class="form-overlay hidden">
+    <div class="form-panel share-panel">
+      <div class="form-panel-head">
+        <h3>Your Brand Profile</h3>
+        <button id="close-profile-btn" class="icon-btn" aria-label="Close">✕</button>
+      </div>
+      <form id="profile-form" class="client-form">
+        <p class="muted-note">This is what other users see when they open your profile in the Users tab.</p>
+        <div class="field">
+          <label for="p-brand-name">Brand Name</label>
+          <div class="brand-name-row">
+            <input type="text" id="p-brand-name" placeholder="e.g. Pixel Forge Studio" />
+            <label class="logo-upload-btn" title="Upload brand logo">
+              <img id="p-brand-logo-preview" class="hidden" alt="Logo preview" />
+              <span id="p-logo-upload-icon">＋</span>
+              <input type="file" id="p-brand-logo" accept="image/*" class="hidden" />
+            </label>
+            <button type="button" id="p-remove-logo-btn" class="icon-btn hidden" aria-label="Remove logo">✕</button>
+          </div>
+        </div>
+        <div class="form-actions">
+          <div></div>
+          <div class="form-actions-right">
+            <button type="button" id="cancel-profile-btn" class="btn btn-ghost">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save</button>
           </div>
         </div>
       </form>

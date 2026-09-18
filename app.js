@@ -47,6 +47,36 @@ const tabPanels = {
 const incomingBadge = document.getElementById("incoming-badge");
 const allowShareToggle = document.getElementById("allow-share-toggle");
 
+/* ---------------- DOM refs: Share Client Info (dashboard) ---------------- */
+const shareClientInfoToggle = document.getElementById("share-client-info-toggle");
+const shareInfoHint = document.getElementById("share-info-hint");
+
+/* ---------------- DOM refs: user detail modal ---------------- */
+const userOverlay = document.getElementById("user-overlay");
+const closeUserBtn = document.getElementById("close-user-btn");
+const udPhoto = document.getElementById("ud-photo");
+const udName = document.getElementById("ud-name");
+const udEmail = document.getElementById("ud-email");
+const udBody = document.getElementById("ud-body");
+const udBrandLogo = document.getElementById("ud-brand-logo");
+const udLogoFallback = document.getElementById("ud-logo-fallback");
+const udBrandName = document.getElementById("ud-brand-name");
+const udTotalProjects = document.getElementById("ud-total-projects");
+const udPrivate = document.getElementById("ud-private");
+const udShareBtn = document.getElementById("ud-share-btn");
+
+/* ---------------- DOM refs: own brand profile modal ---------------- */
+const myProfileBtn = document.getElementById("my-profile-btn");
+const profileOverlay = document.getElementById("profile-overlay");
+const profileForm = document.getElementById("profile-form");
+const closeProfileBtn = document.getElementById("close-profile-btn");
+const cancelProfileBtn = document.getElementById("cancel-profile-btn");
+const pBrandName = document.getElementById("p-brand-name");
+const pBrandLogoInput = document.getElementById("p-brand-logo");
+const pBrandLogoPreview = document.getElementById("p-brand-logo-preview");
+const pLogoUploadIcon = document.getElementById("p-logo-upload-icon");
+const pRemoveLogoBtn = document.getElementById("p-remove-logo-btn");
+
 /* ---------------- DOM refs: My Client tab ---------------- */
 const statClients = document.getElementById("stat-clients");
 const statProjects = document.getElementById("stat-projects");
@@ -106,6 +136,7 @@ const fWhatsappAvailable = document.getElementById("f-whatsapp-available");
 const fbPageList = document.getElementById("fb-page-list");
 const addFbPageBtn = document.getElementById("add-fb-page-btn");
 const fWebsite = document.getElementById("f-website");
+const openWebsiteBtn = document.getElementById("open-website-btn");
 const projectList = document.getElementById("project-list");
 const addProjectBtn = document.getElementById("add-project-btn");
 const projectBlockTemplate = document.getElementById("project-block-template");
@@ -128,6 +159,9 @@ const cancelShareBtn = document.getElementById("cancel-share-btn");
 let currentUser = null;
 let activeTab = "mine";
 let currentBrandLogo = ""; // data URL or ""
+let myProfileLogo = ""; // data URL or "" — the signed-in user's own brand logo
+let myProfile = null; // cached users/{uid} document
+let lastSyncedProjectCount = null;
 
 let unsubClients = null;
 let unsubUsers = null;
@@ -179,32 +213,33 @@ function minDateIso(yearsBack = 5) {
   return d.toISOString().slice(0, 10);
 }
 
-attachDateMask(fProjectStart);
+/* ---------------- Project Start + Last Project (both auto-computed) ----------------
+   Project Start is no longer typed by hand. It is derived from the Projects
+   section: the FIRST project block that has a Delivery Date supplies it.
+   Last Project still comes from the LAST project block's Delivery Date.      */
+function deliveryDmyValues() {
+  return Array.from(projectList.querySelectorAll(".project-block")).map((b) =>
+    b.querySelector(".p-delivery").value.trim()
+  );
+}
 
-/* Project 1 auto-fills its Delivery Date from Project Start (convenience default) */
-fProjectStart.addEventListener("input", () => {
-  if (fProjectStart.value.length === 10) {
-    const firstBlock = projectList.querySelector(".project-block");
-    if (firstBlock) {
-      const deliveryInput = firstBlock.querySelector(".p-delivery");
-      if (deliveryInput && !deliveryInput.value) {
-        deliveryInput.value = fProjectStart.value;
-        updateLastProjectDisplay();
-      }
-    }
-  }
-});
+function computeProjectStartDmy() {
+  return deliveryDmyValues().find((v) => dmyToIso(v)) || "";
+}
 
-/* ---------------- Last Project (auto-computed, read-only) ---------------- */
+function computeLastProjectDmy() {
+  const values = deliveryDmyValues().filter((v) => dmyToIso(v));
+  return values.length ? values[values.length - 1] : "";
+}
+
+function updateDerivedDates() {
+  fProjectStart.value = computeProjectStartDmy();
+  fLastProject.value = computeLastProjectDmy();
+}
+
+/* Kept as an alias so older call sites keep working. */
 function updateLastProjectDisplay() {
-  const blocks = projectList.querySelectorAll(".project-block");
-  if (blocks.length === 0) {
-    fLastProject.value = "";
-    return;
-  }
-  const last = blocks[blocks.length - 1];
-  const dmy = last.querySelector(".p-delivery").value;
-  fLastProject.value = dmy || "";
+  updateDerivedDates();
 }
 
 /* ---------------- Theme (day / night) ---------------- */
@@ -257,6 +292,8 @@ onAuthStateChanged(auth, async (user) => {
     [unsubClients, unsubUsers, unsubIncoming, unsubSent, unsubOwnUser].forEach((fn) => fn && fn());
     allClients = [];
     allUsers = [];
+    myProfile = null;
+    lastSyncedProjectCount = null;
     incomingRequests = [];
     sentRequests = [];
     renderMine();
@@ -278,6 +315,11 @@ async function ensureUserProfile(user) {
       email: user.email || "",
       photoURL: user.photoURL || "",
       allowShareRequests: true,
+      shareClientInfo: true,
+      brandName: "",
+      brandLogo: "",
+      totalProjects: 0,
+      totalClients: 0,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -299,10 +341,57 @@ function subscribeToOwnUser(uid) {
   if (unsubOwnUser) unsubOwnUser();
   unsubOwnUser = onSnapshot(doc(db, "users", uid), (snap) => {
     if (!snap.exists()) return;
+    myProfile = { id: snap.id, ...snap.data() };
     suppressToggleEvent = true;
-    allowShareToggle.checked = snap.data().allowShareRequests !== false;
+    allowShareToggle.checked = myProfile.allowShareRequests !== false;
+    shareClientInfoToggle.checked = myProfile.shareClientInfo !== false;
     suppressToggleEvent = false;
+    updateShareInfoHint();
   });
+}
+
+function updateShareInfoHint() {
+  shareInfoHint.textContent = shareClientInfoToggle.checked
+    ? "On — other users can see your brand and project count, and you can send share requests."
+    : "Off — your brand and project count are hidden from other users, and sharing is paused.";
+}
+
+shareClientInfoToggle.addEventListener("change", async () => {
+  updateShareInfoHint();
+  if (suppressToggleEvent || !currentUser) return;
+  try {
+    await setDoc(
+      doc(db, "users", currentUser.uid),
+      { shareClientInfo: shareClientInfoToggle.checked, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+    showToast(shareClientInfoToggle.checked ? "Client info sharing is on." : "Client info sharing is off.");
+  } catch (err) {
+    showToast("Couldn't update your setting: " + err.message);
+  }
+});
+
+function shareInfoEnabled() {
+  return shareClientInfoToggle.checked;
+}
+
+/* Keep the denormalized project count on users/{uid} in step with your own
+   clients, so other people can see it without reading your client docs. */
+async function syncMyProjectCount() {
+  if (!currentUser) return;
+  const mine = allClients.filter((c) => c.ownerUid === currentUser.uid);
+  const total = mine.reduce((sum, c) => sum + (c.projects || []).length, 0);
+  if (total === lastSyncedProjectCount) return;
+  lastSyncedProjectCount = total;
+  try {
+    await setDoc(
+      doc(db, "users", currentUser.uid),
+      { totalProjects: total, totalClients: mine.length, updatedAt: serverTimestamp() },
+      { merge: true }
+    );
+  } catch (err) {
+    /* best-effort — the dashboard stat is still correct locally */
+  }
 }
 
 allowShareToggle.addEventListener("change", async () => {
@@ -340,6 +429,7 @@ function subscribeToClients(uid) {
       renderMine();
       renderShared();
       refreshShareClientOptions();
+      syncMyProjectCount();
     },
     (err) => showToast("Couldn't load clients: " + err.message)
   );
@@ -394,6 +484,7 @@ setInterval(() => {
   renderUsers();
   renderIncoming();
   renderSent();
+  if (userDetailId) renderUserDetail();
 }, 3000);
 
 async function sweepExpiredRequests() {
@@ -541,18 +632,29 @@ function buildClientCard(c, isShared) {
         </div>
       </div>
       <div class="card-top-right">
-        <button type="button" class="pin-btn ${pinned ? "pinned" : ""}" aria-label="Pin">📌</button>
+        <button type="button" class="pin-btn ${pinned ? "pinned" : ""}"
+                aria-label="${pinned ? "Unpin this client" : "Pin this client"}"
+                aria-pressed="${pinned}" title="${pinned ? "Unpin" : "Pin to top"}">
+          <i class="fa-solid fa-thumbtack"></i>
+        </button>
         <span class="status-pill status-${c.status || "regular"}">${statusLabel}</span>
       </div>
     </div>
     <div class="card-meta">
       <div><span>Found From</span><span>${escapeHtml(c.foundFrom || "—")}</span></div>
       <div><span>Phone</span><span>${escapeHtml(c.phone || "—")}${c.whatsappAvailable ? " (WA)" : ""}</span></div>
+      <div><span>Project Start</span><span>${isoToDmy(c.projectStart) || "—"}</span></div>
       <div><span>Last Project</span><span>${lastProjectDmy}</span></div>
       <div><span>Projects</span><span>${projects.length}</span></div>
       <div><span>Income</span><span>${projectIncome.toLocaleString("en-US")}</span></div>
+      <div class="card-links-row"><span>Links</span><span class="card-links">${buildCardLinks(c)}</span></div>
     </div>
   `;
+
+  // Links live inside a clickable card, so stop the click from also opening the form.
+  card.querySelectorAll(".card-link").forEach((a) => {
+    a.addEventListener("click", (e) => e.stopPropagation());
+  });
 
   card.querySelector(".pin-btn").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -560,6 +662,26 @@ function buildClientCard(c, isShared) {
   });
 
   return card;
+}
+
+/* Website + Facebook page chips on a card. Each opens in a new tab. */
+function buildCardLinks(c) {
+  const links = [];
+  const site = normalizeUrl(c.website);
+  if (site) {
+    links.push(
+      `<a class="card-link" href="${escapeHtml(site)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(site)}"><i class="fa-solid fa-globe"></i> Website</a>`
+    );
+  }
+  (c.facebookPages || []).forEach((page, i) => {
+    const href = normalizeUrl(page);
+    if (!href) return;
+    const label = (c.facebookPages || []).filter((p) => normalizeUrl(p)).length > 1 ? `Page ${i + 1}` : "Page";
+    links.push(
+      `<a class="card-link" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(href)}"><i class="fa-brands fa-facebook"></i> ${label}</a>`
+    );
+  });
+  return links.length ? links.join("") : `<span class="card-link-empty">—</span>`;
 }
 
 function escapeHtml(str) {
@@ -585,15 +707,19 @@ function renderUsers() {
 
   for (const u of filtered) {
     const accepts = u.allowShareRequests !== false;
+    const showsInfo = u.shareClientInfo !== false;
     const card = document.createElement("div");
-    card.className = "user-card";
+    card.className = "user-card user-card-clickable";
+    card.tabIndex = 0;
     card.innerHTML = `
       <div class="user-card-top">
         <img src="${escapeHtml(u.photoURL || "")}" alt="" onerror="this.style.visibility='hidden'" />
         <div>
           <div class="user-card-name">${escapeHtml(u.name || "Unnamed user")}</div>
           <div class="user-card-email">${escapeHtml(u.email || "")}</div>
+          ${showsInfo && u.brandName ? `<div class="user-card-brand">${escapeHtml(u.brandName)}</div>` : ""}
         </div>
+        ${showsInfo && u.brandLogo ? `<img class="user-card-logo" src="${escapeHtml(u.brandLogo)}" alt="" />` : ""}
       </div>
       <span class="user-card-badge ${accepts ? "badge-open" : "badge-closed"}">
         ${accepts ? "Accepts requests" : "Not accepting requests"}
@@ -602,12 +728,76 @@ function renderUsers() {
         Share a client
       </button>
     `;
-    card.querySelector(".share-with-user-btn").addEventListener("click", () => {
+    card.querySelector(".share-with-user-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
       openShareModal({ userId: u.id });
+    });
+    card.addEventListener("click", () => openUserDetail(u.id));
+    card.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openUserDetail(u.id);
+      }
     });
     usersList.appendChild(card);
   }
 }
+
+/* ---------------- User detail modal ---------------- */
+let userDetailId = null;
+
+function openUserDetail(uid) {
+  const u = allUsers.find((x) => x.id === uid);
+  if (!u) return;
+  userDetailId = uid;
+  renderUserDetail();
+  userOverlay.classList.remove("hidden");
+}
+
+function renderUserDetail() {
+  const u = allUsers.find((x) => x.id === userDetailId);
+  if (!u) return;
+
+  udPhoto.src = u.photoURL || "";
+  udPhoto.style.visibility = u.photoURL ? "visible" : "hidden";
+  udName.textContent = u.name || "Unnamed user";
+  udEmail.textContent = u.email || "";
+
+  const showsInfo = u.shareClientInfo !== false;
+  udBody.classList.toggle("hidden", !showsInfo);
+  udPrivate.classList.toggle("hidden", showsInfo);
+
+  if (showsInfo) {
+    udBrandName.textContent = u.brandName || "—";
+    if (u.brandLogo) {
+      udBrandLogo.src = u.brandLogo;
+      udBrandLogo.classList.remove("hidden");
+      udLogoFallback.classList.add("hidden");
+    } else {
+      udBrandLogo.classList.add("hidden");
+      udLogoFallback.classList.remove("hidden");
+    }
+    udTotalProjects.textContent = Number(u.totalProjects || 0).toLocaleString("en-US");
+  }
+
+  const canShare = u.allowShareRequests !== false;
+  udShareBtn.disabled = !canShare;
+  udShareBtn.textContent = canShare ? "Share a client" : "Not accepting requests";
+}
+
+function closeUserDetail() {
+  userOverlay.classList.add("hidden");
+  userDetailId = null;
+}
+closeUserBtn.addEventListener("click", closeUserDetail);
+userOverlay.addEventListener("click", (e) => {
+  if (e.target === userOverlay) closeUserDetail();
+});
+udShareBtn.addEventListener("click", () => {
+  const uid = userDetailId;
+  closeUserDetail();
+  if (uid) openShareModal({ userId: uid });
+});
 usersSearchInput.addEventListener("input", renderUsers);
 
 /* ---------------- Rendering: Requests (Shared tab) ---------------- */
@@ -722,6 +912,10 @@ shareClientSelect.addEventListener("change", () => refreshShareUserOptions());
 
 function openShareModal({ clientId, userId } = {}) {
   if (!currentUser) return;
+  if (!shareInfoEnabled()) {
+    showToast("Turn on “Share Client Info” on the dashboard to share a client.");
+    return;
+  }
   const mine = allClients.filter((c) => c.ownerUid === currentUser.uid);
   if (mine.length === 0) {
     showToast("Add a client of your own before sharing one.");
@@ -760,6 +954,10 @@ function computeExpiryTimestamp(option) {
 shareForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
+  if (!shareInfoEnabled()) {
+    showToast("Turn on “Share Client Info” on the dashboard to share a client.");
+    return;
+  }
   const clientId = shareClientSelect.value;
   const toUid = shareUserSelect.value;
   if (!clientId || !toUid) {
@@ -928,14 +1126,126 @@ removeLogoBtn.addEventListener("click", (e) => {
   setBrandLogo("");
 });
 
+/* ---------------- Links: normalize + open in a new tab ---------------- */
+/* Accepts "example.com" as well as a full URL. Returns "" if it isn't
+   something we're willing to hand to the browser (http/https only). */
+function normalizeUrl(raw) {
+  const value = (raw || "").trim();
+  if (!value) return "";
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    if (!url.hostname.includes(".")) return "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
+function syncOpenLinkBtn(anchor, rawValue) {
+  const href = normalizeUrl(rawValue);
+  if (href) {
+    anchor.href = href;
+    anchor.classList.remove("disabled");
+    anchor.removeAttribute("aria-disabled");
+  } else {
+    anchor.removeAttribute("href");
+    anchor.classList.add("disabled");
+    anchor.setAttribute("aria-disabled", "true");
+  }
+}
+
+function syncWebsiteOpenBtn() {
+  syncOpenLinkBtn(openWebsiteBtn, fWebsite.value);
+}
+fWebsite.addEventListener("input", syncWebsiteOpenBtn);
+
+/* ---------------- Your own brand profile (users/{uid}) ---------------- */
+function setMyProfileLogo(dataUrl) {
+  myProfileLogo = dataUrl || "";
+  if (myProfileLogo) {
+    pBrandLogoPreview.src = myProfileLogo;
+    pBrandLogoPreview.classList.remove("hidden");
+    pLogoUploadIcon.classList.add("hidden");
+    pRemoveLogoBtn.classList.remove("hidden");
+  } else {
+    pBrandLogoPreview.classList.add("hidden");
+    pLogoUploadIcon.classList.remove("hidden");
+    pRemoveLogoBtn.classList.add("hidden");
+  }
+}
+
+function openMyProfile() {
+  if (!currentUser) return;
+  pBrandName.value = myProfile?.brandName || "";
+  setMyProfileLogo(myProfile?.brandLogo || "");
+  profileOverlay.classList.remove("hidden");
+}
+
+function closeMyProfile() {
+  profileOverlay.classList.add("hidden");
+}
+
+myProfileBtn.addEventListener("click", openMyProfile);
+closeProfileBtn.addEventListener("click", closeMyProfile);
+cancelProfileBtn.addEventListener("click", closeMyProfile);
+profileOverlay.addEventListener("click", (e) => {
+  if (e.target === profileOverlay) closeMyProfile();
+});
+
+pBrandLogoInput.addEventListener("change", async () => {
+  const file = pBrandLogoInput.files?.[0];
+  if (!file) return;
+  try {
+    setMyProfileLogo(await resizeImageToDataUrl(file));
+  } catch {
+    showToast("Couldn't process that image.");
+  }
+  pBrandLogoInput.value = "";
+});
+
+pRemoveLogoBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  setMyProfileLogo("");
+});
+
+profileForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!currentUser) return;
+  try {
+    await setDoc(
+      doc(db, "users", currentUser.uid),
+      {
+        brandName: pBrandName.value.trim(),
+        brandLogo: myProfileLogo,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    showToast("Brand profile saved.");
+    closeMyProfile();
+  } catch (err) {
+    showToast("Couldn't save your profile: " + err.message);
+  }
+});
+
 /* ---------------- Facebook pages (unlimited, repeatable) ---------------- */
 function addFbPageRow(value = "") {
   const row = document.createElement("div");
   row.className = "repeatable-row";
   row.innerHTML = `
     <input type="url" placeholder="https://facebook.com/yourpage" value="${escapeHtml(value)}" />
+    <a class="open-link-btn disabled" target="_blank" rel="noopener noreferrer"
+       title="Open in a new tab" aria-label="Open page in a new tab">
+      <i class="fa-solid fa-arrow-up-right-from-square"></i>
+    </a>
     <button type="button" aria-label="Remove">✕</button>
   `;
+  const input = row.querySelector("input");
+  const anchor = row.querySelector(".open-link-btn");
+  syncOpenLinkBtn(anchor, value);
+  input.addEventListener("input", () => syncOpenLinkBtn(anchor, input.value));
   row.querySelector("button").addEventListener("click", () => row.remove());
   fbPageList.appendChild(row);
 }
@@ -974,8 +1284,11 @@ function addProjectRow(project = {}) {
     if (Number(e.target.value) > 20) e.target.value = 20;
   });
 
+  // Payment is only editable once the project is Delivered.
+  applyPaymentLock(block);
   block.querySelector(".p-status").addEventListener("change", (e) => {
     block.dataset.status = e.target.value;
+    applyPaymentLock(block);
   });
   block.querySelector(".project-remove-btn").addEventListener("click", () => {
     block.remove();
@@ -989,14 +1302,32 @@ function addProjectRow(project = {}) {
 }
 addProjectBtn.addEventListener("click", () => addProjectRow());
 
+/* Payment stays locked while a project is New / Ongoing / Queued.
+   Locking also clears the amount, so Total Income only ever counts
+   money from projects that were actually delivered. */
+function applyPaymentLock(block) {
+  const status = block.querySelector(".p-status").value;
+  const payment = block.querySelector(".p-payment");
+  const hint = block.querySelector(".p-payment-hint");
+  const locked = status !== "delivered";
+
+  payment.disabled = locked;
+  payment.classList.toggle("is-locked", locked);
+  if (hint) hint.classList.toggle("hidden", !locked);
+  if (locked) payment.value = "";
+}
+
 function getProjects() {
-  return Array.from(projectList.querySelectorAll(".project-block")).map((block) => ({
-    payment: Number(block.querySelector(".p-payment").value) || 0,
-    correction: Math.min(Number(block.querySelector(".p-correction").value) || 0, 20),
-    deliveryDate: dmyToIso(block.querySelector(".p-delivery").value),
-    status: block.querySelector(".p-status").value,
-    note: block.querySelector(".p-note").value.trim(),
-  }));
+  return Array.from(projectList.querySelectorAll(".project-block")).map((block) => {
+    const status = block.querySelector(".p-status").value;
+    return {
+      payment: status === "delivered" ? Number(block.querySelector(".p-payment").value) || 0 : 0,
+      correction: Math.min(Number(block.querySelector(".p-correction").value) || 0, 20),
+      deliveryDate: dmyToIso(block.querySelector(".p-delivery").value),
+      status,
+      note: block.querySelector(".p-note").value.trim(),
+    };
+  });
 }
 
 /* ---------------- Client form open/close ---------------- */
@@ -1016,6 +1347,8 @@ function resetForm() {
   leaveSharedField.classList.add("hidden");
   formSharedNote.classList.add("hidden");
   formTitle.textContent = "Add New Client";
+  updateDerivedDates();
+  syncWebsiteOpenBtn();
 }
 
 function openForm(client = null) {
@@ -1024,7 +1357,6 @@ function openForm(client = null) {
     const isOwner = client.ownerUid === currentUser.uid;
     formTitle.textContent = "Edit Client";
     fIdInput.value = client.id;
-    fProjectStart.value = isoToDmy(client.projectStart);
     fClientName.value = client.clientName || "";
     fBrandName.value = client.brandName || "";
     setBrandLogo(client.brandLogo || "");
@@ -1046,11 +1378,12 @@ function openForm(client = null) {
     pages.forEach((p) => addFbPageRow(p));
 
     fWebsite.value = client.website || "";
+    syncWebsiteOpenBtn();
 
     projectList.innerHTML = "";
     const projects = client.projects && client.projects.length ? client.projects : [{}];
     projects.forEach((p) => addProjectRow(p));
-    updateLastProjectDisplay();
+    updateDerivedDates();
 
     const knownMethods = ["Bkash", "Nagad", "Bank", "PayPal", "Payoneer", "Cash"];
     if (client.paymentMethod && !knownMethods.includes(client.paymentMethod)) {
@@ -1092,20 +1425,19 @@ clientForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   if (!currentUser) return;
 
-  const projectStartIso = dmyToIso(fProjectStart.value);
-  if (!projectStartIso) {
-    showToast("Enter Project Start as dd/mm/yyyy.");
-    return;
-  }
-  if (projectStartIso < minDateIso(5)) {
-    showToast("Project Start can't be more than 5 years in the past.");
-    return;
-  }
-
   const projects = getProjects();
+
+  // Project Start is now derived from the Projects section, so at least one
+  // project needs a valid Delivery Date before the client can be saved.
+  const projectStartIso = projects.find((p) => p.deliveryDate)?.deliveryDate || "";
+  if (!projectStartIso) {
+    showToast("Add a Delivery Date to at least one project — it sets Project Start.");
+    return;
+  }
+  const floor = minDateIso(5);
   for (const p of projects) {
-    if (p.deliveryDate && p.deliveryDate < projectStartIso) {
-      showToast("A project's Delivery Date can't be before Project Start.");
+    if (p.deliveryDate && p.deliveryDate < floor) {
+      showToast("A Delivery Date can't be more than 5 years in the past.");
       return;
     }
   }
@@ -1114,7 +1446,8 @@ clientForm.addEventListener("submit", async (e) => {
   const paymentMethod =
     fPaymentMethod.value === "custom" ? fPaymentMethodCustom.value.trim() : fPaymentMethod.value;
 
-  const lastProjectIso = projects.length ? projects[projects.length - 1].deliveryDate || "" : "";
+  const dated = projects.filter((p) => p.deliveryDate);
+  const lastProjectIso = dated.length ? dated[dated.length - 1].deliveryDate : "";
 
   const data = {
     projectStart: projectStartIso,

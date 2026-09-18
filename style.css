@@ -746,3 +746,143 @@ input:focus, select:focus, textarea:focus{
     border-bottom: none;
   }
 }
+/* ===========================================================
+   ADDITIONS — pin icon, links, payment lock, dashboard toggle,
+   user detail modal, brand profile
+   =========================================================== */
+
+/* ---- Dashboard: Share Client Info toggle ---- */
+.dash-controls{ margin: 0 0 20px; }
+.share-toggle-dash{
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  justify-content: space-between;
+  gap: 16px;
+}
+.dash-toggle-text{ display:flex; flex-direction:column; gap:4px; }
+.dash-toggle-title{
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+}
+.dash-toggle-title i{ color: var(--gold); margin-right: 4px; }
+.dash-toggle-sub{ font-size: 12.5px; color: var(--muted); }
+
+/* ---- Pin button (Font Awesome thumbtack) ---- */
+.pin-btn i{ transition: transform .15s ease; }
+.pin-btn:hover i{ transform: rotate(-20deg); }
+.pin-btn.pinned i{ transform: rotate(-35deg); }
+
+/* ---- Open-in-new-tab buttons next to URL inputs ---- */
+.link-input-row{ display:flex; align-items:center; gap:8px; }
+.link-input-row input{ flex:1; min-width:0; }
+.open-link-btn{
+  flex-shrink:0;
+  width: 36px; height: 36px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface-2);
+  text-decoration: none;
+  font-size: 13px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.open-link-btn:hover{ color: var(--gold); border-color: var(--gold); }
+.open-link-btn.disabled{ opacity: .4; pointer-events: none; }
+.repeatable-row .open-link-btn{ width: 32px; height: 32px; }
+
+/* ---- Clickable link chips on a client card ---- */
+.card-links-row{ align-items: flex-start !important; }
+.card-links{ display:flex; flex-wrap:wrap; gap:6px; justify-content:flex-end; }
+.card-link{
+  display:inline-flex; align-items:center; gap:5px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink);
+  text-decoration: none;
+}
+.card-link:hover{ border-color: var(--gold); color: var(--gold); }
+.card-link-empty{ color: var(--muted); }
+
+/* ---- Locked Payment field (non-delivered projects) ---- */
+.p-payment.is-locked{
+  opacity: .55;
+  cursor: not-allowed;
+  background: var(--surface-2);
+}
+
+/* ---- Users tab: clickable cards ---- */
+.user-card-clickable{ cursor: pointer; transition: border-color .15s ease; }
+.user-card-clickable:hover,
+.user-card-clickable:focus-visible{ border-color: var(--gold); outline: none; }
+.user-card-brand{ color: var(--gold); font-size: 12px; margin-top: 2px; font-family: var(--font-mono); }
+.user-card-logo{
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ---- User detail modal ---- */
+.user-panel{ max-width: 460px; }
+.user-detail{ padding: 20px 22px 22px; display:flex; flex-direction:column; gap:18px; }
+.user-detail-head{ display:flex; align-items:center; gap:14px; }
+.user-detail-head img{ width:56px; height:56px; border-radius:50%; border:1px solid var(--border); object-fit:cover; }
+.user-detail-name{ font-family: var(--font-display); font-weight:600; font-size:18px; }
+.user-detail-email{ color: var(--muted); font-size: 13px; margin-top:2px; }
+
+.user-detail-brand{
+  display:flex; align-items:center; gap:14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+}
+.ud-logo-wrap{
+  width: 52px; height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+  flex-shrink:0;
+}
+.ud-logo-wrap img{ width:100%; height:100%; object-fit:cover; }
+.ud-logo-wrap span{ color: var(--muted); font-size: 17px; }
+.ud-label{ font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing:.06em; }
+.ud-value{ font-family: var(--font-display); font-weight:600; font-size: 16px; margin-top: 3px; }
+.user-detail-stats{ display:grid; grid-template-columns: 1fr; gap: 12px; margin-top: 4px; }
+.user-detail .form-actions{ margin-top: 4px; }
+
+/* topbar chip is now a button */
+button.user-chip{
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+button.user-chip:hover{ border-color: var(--gold); }
+
+button.user-chip{
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 12px 4px 4px;
+}
+
+/* The mobile rule that hides .share-toggle's label must not hide the
+   dashboard toggle's text, which is the whole point of that card. */
+@media (max-width: 720px){
+  .share-toggle-dash .dash-toggle-text{ display:flex !important; }
+  .share-toggle-dash{ padding: 12px 14px; }
+  .card-links{ justify-content: flex-start; }
+}
