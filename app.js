@@ -65,7 +65,6 @@ const udTotalProjects = document.getElementById("ud-total-projects");
 const udPrivate = document.getElementById("ud-private");
 const udShareBtn = document.getElementById("ud-share-btn");
 const udReactBtn = document.getElementById("ud-react-btn");
-const udReactLabel = document.getElementById("ud-react-label");
 const udReactCount = document.getElementById("ud-react-count");
 const udSocialsWrap = document.getElementById("ud-socials-wrap");
 const udSocials = document.getElementById("ud-socials");
@@ -208,6 +207,32 @@ function attachDateMask(input) {
   });
 }
 
+/* Wires a calendar icon button + a visually-hidden native <input type="date">
+   to a dd/mm/yyyy text field, so picking a date works like any date picker
+   while the field keeps storing/displaying dd/mm/yyyy. Also keeps the picker
+   in sync when the text field changes by hand, so it opens on the right day. */
+function attachCalendarPicker(textInput, pickerInput, button, onPicked) {
+  button.addEventListener("click", () => {
+    const iso = dmyToIso(textInput.value);
+    pickerInput.value = iso || "";
+    if (typeof pickerInput.showPicker === "function") {
+      try {
+        pickerInput.showPicker();
+        return;
+      } catch {
+        /* fall through to the .click() fallback below */
+      }
+    }
+    pickerInput.click();
+  });
+  pickerInput.addEventListener("change", () => {
+    if (!pickerInput.value) return;
+    textInput.value = isoToDmy(pickerInput.value);
+    textInput.dispatchEvent(new Event("input", { bubbles: true }));
+    if (onPicked) onPicked();
+  });
+}
+
 function dmyToIso(str) {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((str || "").trim());
   if (!m) return "";
@@ -236,6 +261,11 @@ function minDateIso(yearsBack = 5) {
    Projects section in either direction. Last Project is still derived from
    the last project block that has a Delivery Date.                        */
 attachDateMask(fProjectStart);
+attachCalendarPicker(
+  fProjectStart,
+  document.getElementById("f-project-start-picker"),
+  document.getElementById("f-project-start-cal-btn")
+);
 
 function deliveryDmyValues() {
   return Array.from(projectList.querySelectorAll(".project-block")).map((b) =>
@@ -624,8 +654,8 @@ function buildSocialLinks(socials = {}) {
     .map(([key, meta]) => {
       const href = socialUrl(key, socials[key]);
       if (!href) return "";
-      return `<a class="social-link ${meta.cls}" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="${meta.label}">
-        <i class="${meta.icon}"></i><span>${meta.label}</span>
+      return `<a class="social-link ${meta.cls}" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="${meta.label}" aria-label="${meta.label}">
+        <i class="${meta.icon}"></i>
       </a>`;
     })
     .filter(Boolean)
@@ -648,12 +678,12 @@ function updateStats(mineClients) {
   updateReactStat();
 }
 
-/* ---------------- Sorting: pinned first, then latest Project Start ---------------- */
+/* ---------------- Sorting: pinned first, then latest Last Project date ---------------- */
 function sortClients(list) {
   return [...list].sort((a, b) => {
     const pinDiff = (pinnedIds.has(b.id) ? 1 : 0) - (pinnedIds.has(a.id) ? 1 : 0);
     if (pinDiff !== 0) return pinDiff;
-    return (b.projectStart || "").localeCompare(a.projectStart || "");
+    return (b.lastProject || "").localeCompare(a.lastProject || "");
   });
 }
 
@@ -844,7 +874,7 @@ function renderUsers() {
     card.innerHTML = `
       <div class="user-card-top">
         <img src="${escapeHtml(u.photoURL || "")}" alt="" onerror="this.style.visibility='hidden'" />
-        <div>
+        <div class="user-card-info">
           <div class="user-card-name">${escapeHtml(u.name || "Unnamed user")}</div>
           <div class="user-card-email">${escapeHtml(u.email || "")}</div>
           ${showsInfo && u.brandName ? `<div class="user-card-brand">${escapeHtml(u.brandName)}</div>` : ""}
@@ -921,7 +951,6 @@ function renderUserDetail() {
   const reacted = iReactedTo(u.id);
   udReactBtn.classList.toggle("reacted", reacted);
   udReactBtn.setAttribute("aria-pressed", String(reacted));
-  udReactLabel.textContent = reacted ? "Loved" : "Love";
   udReactCount.textContent = reactCountFor(u.id).toLocaleString("en-US");
 
   // Social + contact links
@@ -1435,9 +1464,20 @@ function addProjectRow(project = {}) {
   deliveryInput.value = isoToDmy(project.deliveryDate);
   attachDateMask(deliveryInput);
   deliveryInput.addEventListener("input", updateLastProjectDisplay);
+  attachCalendarPicker(
+    deliveryInput,
+    block.querySelector(".p-delivery-picker"),
+    block.querySelector(".p-delivery ~ .calendar-btn"),
+    updateLastProjectDisplay
+  );
   const paymentDateInput = block.querySelector(".p-payment-date");
   paymentDateInput.value = isoToDmy(project.paymentDate);
   attachDateMask(paymentDateInput);
+  attachCalendarPicker(
+    paymentDateInput,
+    block.querySelector(".p-payment-date-picker"),
+    block.querySelector(".p-payment-date ~ .calendar-btn")
+  );
   block.querySelector(".p-status").value = status;
   block.querySelector(".p-note").value = project.note || "";
 

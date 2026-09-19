@@ -220,7 +220,13 @@
         <div class="field-row">
           <div class="field">
             <label for="f-project-start">Project Start</label>
-            <input type="text" id="f-project-start" class="date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" required />
+            <div class="date-input-row">
+              <input type="text" id="f-project-start" class="date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" required />
+              <button type="button" id="f-project-start-cal-btn" class="calendar-btn" aria-label="Pick a date from the calendar" title="Pick a date">
+                <i class="fa-regular fa-calendar"></i>
+              </button>
+              <input type="date" id="f-project-start-picker" class="sr-date-picker" tabindex="-1" aria-hidden="true" />
+            </div>
           </div>
           <div class="field">
             <label for="f-last-project">Last Project</label>
@@ -369,12 +375,24 @@
       </div>
       <div class="field">
         <label>Delivery Date</label>
-        <input type="text" class="p-delivery date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+        <div class="date-input-row">
+          <input type="text" class="p-delivery date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+          <button type="button" class="calendar-btn" aria-label="Pick a date from the calendar" title="Pick a date">
+            <i class="fa-regular fa-calendar"></i>
+          </button>
+          <input type="date" class="p-delivery-picker sr-date-picker" tabindex="-1" aria-hidden="true" />
+        </div>
         <span class="hint p-delivery-hint">Independent of Project Start. The latest one fills "Last Project".</span>
       </div>
       <div class="field">
         <label>Payment Date</label>
-        <input type="text" class="p-payment-date date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+        <div class="date-input-row">
+          <input type="text" class="p-payment-date date-input" placeholder="dd/mm/yyyy" inputmode="numeric" maxlength="10" />
+          <button type="button" class="calendar-btn" aria-label="Pick a date from the calendar" title="Pick a date">
+            <i class="fa-regular fa-calendar"></i>
+          </button>
+          <input type="date" class="p-payment-date-picker sr-date-picker" tabindex="-1" aria-hidden="true" />
+        </div>
         <span class="hint">When the money actually came in. Optional.</span>
       </div>
       <div class="field">
@@ -447,11 +465,10 @@
         </div>
 
         <div class="react-row">
-          <button type="button" id="ud-react-btn" class="react-btn">
+          <button type="button" id="ud-react-btn" class="react-btn" aria-label="Love">
             <i class="fa-solid fa-heart"></i>
-            <span id="ud-react-label">Love</span>
           </button>
-          <span class="react-count"><b id="ud-react-count">0</b> react</span>
+          <span id="ud-react-count" class="react-count">0</span>
         </div>
 
         <div id="ud-socials-wrap" class="hidden">

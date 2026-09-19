@@ -467,9 +467,10 @@ input:focus, select:focus, textarea:focus{
   gap: 12px;
 }
 .user-card-top{ display:flex; align-items:center; gap:12px; }
-.user-card-top img{ width:42px; height:42px; border-radius:50%; border:1px solid var(--border); object-fit:cover; }
-.user-card-name{ font-weight:600; font-size: 14.5px; }
-.user-card-email{ color: var(--muted); font-size: 12.5px; }
+.user-card-top > img{ width:42px; height:42px; border-radius:50%; border:1px solid var(--border); object-fit:cover; flex-shrink:0; }
+.user-card-info{ flex:1; min-width:0; }
+.user-card-name{ font-weight:600; font-size: 14.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.user-card-email{ color: var(--muted); font-size: 12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .user-card-badge{
   font-family: var(--font-mono);
   font-size: 10.5px;
@@ -506,7 +507,6 @@ input:focus, select:focus, textarea:focus{
 .client-card{
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--st-regular);
   border-radius: var(--radius);
   padding: 18px 18px 16px;
   cursor: pointer;
@@ -514,9 +514,6 @@ input:focus, select:focus, textarea:focus{
   position: relative;
 }
 .client-card:hover{ border-color: var(--gold); }
-.client-card[data-status="regular"]{ border-left-color: var(--st-regular); }
-.client-card[data-status="not_regular"]{ border-left-color: var(--st-not_regular); }
-.client-card[data-status="not_in_touch"]{ border-left-color: var(--st-not_in_touch); }
 
 .card-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom:12px; }
 .card-name-group{ display:flex; align-items:center; gap:10px; }
@@ -823,8 +820,8 @@ input:focus, select:focus, textarea:focus{
 .user-card-clickable{ cursor: pointer; transition: border-color .15s ease; }
 .user-card-clickable:hover,
 .user-card-clickable:focus-visible{ border-color: var(--gold); outline: none; }
-.user-card-brand{ color: var(--gold); font-size: 12px; margin-top: 2px; font-family: var(--font-mono); }
-.user-card-logo{
+.user-card-brand{ color: var(--gold); font-size: 12px; margin-top: 2px; font-family: var(--font-mono); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.user-card-top .user-card-logo{
   width: 34px; height: 34px;
   border-radius: 8px;
   object-fit: cover;
@@ -896,30 +893,26 @@ button.user-chip{
 .stat-card-react .stat-value{ color: #E0685A; }
 
 /* ---- Love react button (user detail modal) ---- */
-.react-row{ display:flex; align-items:center; gap:12px; }
+.react-row{ display:flex; align-items:center; gap:10px; }
 .react-btn{
-  display:inline-flex; align-items:center; gap:8px;
-  padding: 8px 16px;
-  border-radius: 20px;
+  width: 40px; height: 40px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--muted);
-  font-family: var(--font-body);
-  font-size: 13.5px;
-  font-weight: 500;
   cursor: pointer;
   transition: all .15s ease;
 }
 .react-btn:hover{ border-color: #E0685A; color: #E0685A; }
-.react-btn i{ font-size: 13px; transition: transform .15s ease; }
-.react-btn:active i{ transform: scale(1.35); }
+.react-btn i{ font-size: 16px; transition: transform .15s ease; }
+.react-btn:active i{ transform: scale(1.3); }
 .react-btn.reacted{
   background: rgba(224,104,90,0.14);
   border-color: rgba(224,104,90,0.45);
   color: #E0685A;
 }
-.react-count{ font-size: 13px; color: var(--muted); }
-.react-count b{ font-family: var(--font-mono); color: var(--ink); }
+.react-count{ font-family: var(--font-mono); font-size: 14px; color: var(--ink); font-weight:600; }
 
 /* ---- React tally on a user card ---- */
 .user-card-reacts{
@@ -948,18 +941,18 @@ button.user-chip{
 /* ---- Social links (other user's profile) ---- */
 .social-links{ display:flex; flex-wrap:wrap; gap:8px; margin-top: 8px; }
 .social-link{
-  display:inline-flex; align-items:center; gap:7px;
-  padding: 7px 13px;
-  border-radius: 20px;
+  width: 38px; height: 38px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border-radius: 50%;
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--ink);
-  font-size: 12.5px;
   text-decoration: none;
   transition: border-color .15s ease, transform .1s ease;
 }
 .social-link:hover{ transform: translateY(-1px); }
-.social-link i{ font-size: 13px; }
+.social-link i{ font-size: 15px; }
+.social-link span{ display:none; }
 
 .ico-instagram i,   .social-link.ico-instagram i{ color: #E1306C; }
 .ico-facebook i,    .social-link.ico-facebook i{ color: #1877F2; }
@@ -979,4 +972,31 @@ button.user-chip{
 }
 @media (max-width: 520px){
   .stats-row{ grid-template-columns: 1fr; }
+}
+
+/* ---- Calendar picker on date fields ---- */
+.date-input-row{ display:flex; align-items:center; gap:8px; position: relative; }
+.date-input-row .date-input{ flex:1; min-width:0; }
+.calendar-btn{
+  flex-shrink:0;
+  width: 36px; height: 36px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 14px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.calendar-btn:hover{ color: var(--gold); border-color: var(--gold); }
+/* The native date input drives the OS/browser calendar UI but is never
+   seen itself — it sits invisible and zero-size right next to its button. */
+.sr-date-picker{
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
